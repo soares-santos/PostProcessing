@@ -1,3 +1,4 @@
+
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt 
@@ -8,8 +9,13 @@ import glob, sys, datetime, getopt
 import os
 import subprocess
 import diffimg
+import easyaccess
+import numpy as np
+import HTML
 
 #Read User input#
+def image(text, url):
+    return "<center>%s</center><img src='%s'>" % (text, url)
 
 print "Read user input"
 
@@ -21,6 +27,7 @@ parser.add_argument('--outputdir', metavar='d', type=str, help='Directory locati
 #parser.add_argument('--season', help='season is required', default=107, type=int)
 
 args = parser.parse_args()
+expnums = args.expnums
 print args.expnums
 print args.outputdir
 
@@ -137,6 +144,22 @@ print b
 #subprocess.call(b, shell=True)
 
 
+#Produce Truth Table for Fakes#
+explist=','.join(map(str,expnums))
+
+# the database where diffimg outputs are stored                                 
+db='destest'
+schema = 'marcelle'
+
+# the query you want to run to get the truth table data                         
+query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT, BAND, NITE, MJD from '+ schema +'.SNFAKEIMG where EXPNUM IN ('+explist+') order by SNFAKE_ID'
+
+# the file where you want to save the truth table                               
+filename= config.get('GWmakeDataFiles-fake', 'fake_input')
+
+#connection=easyaccess.connect(db)
+#connection.query_and_save(query,filename)
+#connection.close()
 
 print "Plot efficiency"
 
@@ -241,39 +264,44 @@ urID= np.unique(rID)
 numofcan = len(urID)
 realss = reals.data
 
-f= open(str(outdir)+'/'+'allcandidates.txt', 'w')
-f.write('SNID, ' + ' RA, ' + ' DEC, ' + ' CandType' +  ' NumEpochs, ' + ' NumEpochsml, ' + ' LatestNiteml' + "\n")
+f1= open(str(outdir)+'/'+'allcandidates.txt', 'w')
+header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' NumEpochsml, ' + ' LatestNiteml' 
+f1.write(header1)
 for i in range(0,numofcan):
-    line = str(reals.data.SNID[i]) + ", " + str(reals.data.RA[i]) + ", " + str(reals.data.DEC[i]) + ", " + str(reals.data.CandType[i]) + ", " + str(reals.data.NumEpochs[i]) + ", " + str(reals.data.NumEpochsml[i]) + ", " + str(reals.data.LatestNiteml[i]) + "\n"
-    f.write(line)
-
-f.close()
-#Fit light curves section (If time allows)#
-
-for i in range(0,numofcan):
-    Cand =(reals.data.SNID == urID[i]) 
-    filename = 'Candidate_'+str(int(urID[i])) + '.html'
-    header = 'BAND ' + 'x ' + 'y ' + 'Mag ' + 'Nite ' + 'MJD ' + 'Season' 
+    Cand =(reals.data.SNID == urID[i])
+    line = str(urID[i]) + ", " + str(reals.data.RA[Cand][1]) + ", " + str(reals.data.DEC[Cand][1]) + ", " + str(reals.data.CandType[Cand][1]) + ", " + str(reals.data.NumEpochs[Cand][1]) + ", " + str(reals.data.NumEpochsml[Cand][1]) + ", " + str(reals.data.LatestNiteml[Cand][1]) + "\n"
+    table1 = np.array([[int(urID[i]),reals.data.RA[Cand][1],reals.data.DEC[Cand][1],int(reals.data.CandType[Cand][1]),int(reals.data.NumEpochs[Cand][1]),int(reals.data.NumEpochsml[Cand][1]),int(reals.data.LatestNiteml[Cand][1])]])
+    print table1
+    f1.write(line)
+    filename = 'Candidate_'+str(int(urID[i])) + '.txt'
+    htmlfilename = 'Candidate_'+str(int(urID[i])) + '.html'
+    header ='BAND ' + 'x ' + 'y ' + 'Mag ' + 'Nite ' + 'MJD ' + 'Season ' + 'Object ' + 'Exposure ' + 'Field ' + 'CCDNUM'
     nobs = len(reals.data.BAND[Cand])
     seasoncol = np.ones((nobs,), dtype = np.int)*int(season)
     print seasoncol
     table = np.column_stack((reals.data.BAND[Cand], reals.data.XPIX[Cand], reals.data.YPIX[Cand], reals.data.MAG[Cand], reals.data.NITE[Cand], reals.data.MJD[Cand], seasoncol))
     np.savetxt(str(outdir)+'/'+filename, table, fmt = '%s', header = header)
+    htmlcode = HTML.table(table.tolist(),header_row = header.split(' '))
+    htmlcode1 = HTML.table(table1.tolist(), header_row = header1.split(', '))
+    f = open(str(outdir)+ '/'+  htmlfilename, 'w')
+    f.write(htmlcode1)
+    f.write(htmlcode)
     ###Collect Stamps for observations of this candidate###
-    thiscand_stampsdir = outstamps + '/' + str(urID[i])
+    thiscand_stampsdir = outstamps  + '/' + str(int(urID[i]))
     if not os.path.exists(thiscand_stampsdir):
         os.mkdir(thiscand_stampsdir)
-
+###Create Stamps_table with 8 columns and nobs rows all empty###
+    stampstable = ([[None]*8])
+    stampsheader = 'Filter, ' + 'Object ID, ' + 'Nite, ' + 'MJD, ' + 'Search, ' + 'Template, ' + 'Difference, ' + 'AutoScan Score,'
     for j in range(0,nobs):
 #        thisobs_nite = str(int(reals.data.NITE[Cand][j]))
 #        thisobs_band = reals.data.BAND[Cand][j]
 #These lines are temporary and must be replaced with general versions###
-        thisobs_nite = "20150917"
-        thisobs_band = "z"
-        ccdnum = 25
-        season = 44
-        expdir = "/data/des41.a/data/marcelle/diffimg/local-runs"
-        thisobs_ID = 74
+        thisobs_nite = realss.NITE[Cand][j]
+        thisobs_band = realss.BAND[Cand][j]
+        ccdnum = realss.CCDNUM[Cand][j]
+#        expdir = "/data/des41.a/data/marcelle/diffimg/local-runs"
+        thisobs_ID = realss.OBSID[Cand][j]
 ###End of Temporary Lines###
         a = expdir + '/' + thisobs_nite + '/*/dp' + str(season) + '/' + thisobs_band + '_' + str(ccdnum) + '/stamps*'
         print a
@@ -281,12 +309,30 @@ for i in range(0,numofcan):
         print thisobs_stampsdir
         filenamediff = thisobs_stampsdir + '/diff' + str(thisobs_ID) + '.gif'
         filenamesrch = thisobs_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
-#        filenametemp = thisobs_stampsdir + '/temp' + str(thisobs_ID) + '.gif' 
+        filenametemp = thisobs_stampsdir + '/temp' + str(thisobs_ID) + '.gif' 
         shutil.copy(filenamediff, thiscand_stampsdir)
         shutil.copy(filenamesrch, thiscand_stampsdir)
 #        shutil.copy(filenametemp, thiscand_stampsdir)
+        path1 = thiscand_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
+        print path1
+        search= image('', 'stamps/' + str(int(urID[i]))  + '/srch' + str(thisobs_ID) + '.gif')
+        temp  = image('', 'stamps/' + str(int(urID[i])) + '/temp' + str(thisobs_ID) + '.gif')
+        diff  = image('', 'stamps/' + str(int(urID[i])) + '/diff' + str(thisobs_ID) + '.gif')
+###Replace in the empty spaces in table with values/pictures###
+        stampstable[j][0] = realss.BAND[Cand][j]
+        stampstable[j][1] = "Obs ID Goes here"
+        stampstable[j][2] = realss.NITE[Cand][j]
+        stampstable[j][3] = realss.MJD[Cand][j]
+        stampstable[j][4] = search
+        stampstable[j][5] = "temp goes here"
+        stampstable[j][5] = temp
+        stampstable[j][6] = diff
+        stampstable[j][7] = realss.PHOTPROB[Cand][j]
+        stampstable.append([None] * 8)
+    htmlcode2 = HTML.table(stampstable, header_row= stampsheader.split(', '))
+    f.write(htmlcode2)
                      
-                       
+f1.close()  
     
 print "SUCCESS"    
 
