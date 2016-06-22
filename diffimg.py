@@ -418,4 +418,4 @@ def generic_transients(n=100):
 	
 
 
-##lst1, lst2 = zip(*zipped_list)
+##lst1, lst2 = zip(*zipped_list)			 
