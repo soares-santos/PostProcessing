@@ -1,4 +1,3 @@
-
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt 
@@ -12,19 +11,25 @@ import diffimg
 import easyaccess
 import numpy as np
 import HTML
-
+###FOR TESTING PURPOSES###
+### 475914 475915 475916 476960 476961 476962 482859 482860 482861 ###
+###SEASON= 46###
 #Read User input#
 def image(text, url):
     return "<center>%s</center><img src='%s'>" % (text, url)
 
 print "Read user input"
 
+### WE NEED EXPLIST TO ENSURE ALL EXPOSURE NUMBERS ARE ACCOUNTED FOR ###
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
 parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures', default= [476960])
 
 parser.add_argument('--outputdir', metavar='d', type=str, help='Directory location of output files', default= "testevent")
-#parser.add_argument('--season', help='season is required', default=107, type=int)
+
+parser.add_argument('--season', help='season is required', default=107, type=int)
+
+parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 0)
 
 args = parser.parse_args()
 expnums = args.expnums
@@ -79,6 +84,7 @@ fakeversion = config.get('GWmakeDataFiles-fake', 'version')
 print "Check RUNMON outputs"
 
 #expnumlist = args.expnums
+### Query this from database ###
 
 #Read in and locate files#
 for expnum in args.expnums: 
@@ -88,15 +94,16 @@ for expnum in args.expnums:
     runmonlog=d+"RUNMON*.LOG"
     nfiles= len(glob.glob(runmonlog))
     if nfiles != 1:
-        print "runmonlog not found"
+        print "runmonlog for exposure" + e + " not found"
+        sys.exit(1)
 ###Think about what to do in the case that the file is not found###
-        psf= forcedir+"/*/*"+e+"*.psf"
-        diff = forcedir+"/*/*"+e+"*_diff.fits"
-        diffmh = forcedir+"/*/*"+e+"*_diff_mh.fits"
+    psf= forcedir+"/*/*"+e+"*.psf"
+    diff = forcedir+"/*/*"+e+"*_diff.fits"
+    diffmh = forcedir+"/*/*"+e+"*_diff_mh.fits"
 
-        for filetype in (psf, diff, diffmh):
-            if len(glob.glob(filetype)) == 0 :
-                print "files not found"
+    for filetype in (psf, diff, diffmh):
+        if len(glob.glob(filetype)) == 0 :
+            print "files not found"
 
 print "Run GWFORCE"
 
@@ -113,7 +120,7 @@ if writeDB == "on":
     a = a+ ' -writeDB ' 
 
 print a
-#subprocess.call(a, shell=True)
+subprocess.call(a, shell=True)
 
 
 ####run "gwhostmatch" section (if time allows)#
@@ -134,14 +141,14 @@ print "Run GWmakeDataFiles - real"
 b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
 
 print b 
-#subprocess.call(b, shell=True)
+subprocess.call(b, shell=True)
 
 print "Run GWmakeDataFiles - fake"
 
 b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
 
 print b
-#subprocess.call(b, shell=True)
+subprocess.call(b, shell=True)
 
 
 #Produce Truth Table for Fakes#
@@ -157,9 +164,13 @@ query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT,
 # the file where you want to save the truth table                               
 filename= config.get('GWmakeDataFiles-fake', 'fake_input')
 
-#connection=easyaccess.connect(db)
-#connection.query_and_save(query,filename)
-#connection.close()
+connection=easyaccess.connect(db)
+connection.query_and_save(query,filename)
+connection.close()
+
+### FOR THE FIRST RUN EXIT HERE TO LEARN NAMES OF VALUES WE NEED###
+
+exit 
 
 print "Plot efficiency"
 
@@ -269,6 +280,18 @@ header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' Num
 f1.write(header1)
 for i in range(0,numofcan):
     Cand =(reals.data.SNID == urID[i])
+    #Making Plot of Flux vs MJD for each Candidate#
+    Flux = realss.FLUXCAL 
+    MJD = realss.MJD
+    Fluxerr = realss.FLUXCALERR
+    plt.scatter(MJD[Cand],Flux[Cand], color = 'red')
+    plt.errorbar(MJD[Cand],Flux[Cand], yerr=FluxErr[Cand], ls = 'none')
+    plt.xlabel('MJD')
+    plt.ylabel('Flux')
+    plt.title('Flux vs. MJD for candidate' + str(int(urID[i])))
+    plt.savefig(outdir + '/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '.pdf')
+    plt.clf()             
+    #Finished Making plot of Flux vs MJD for each Candidate#
     line = str(urID[i]) + ", " + str(reals.data.RA[Cand][1]) + ", " + str(reals.data.DEC[Cand][1]) + ", " + str(reals.data.CandType[Cand][1]) + ", " + str(reals.data.NumEpochs[Cand][1]) + ", " + str(reals.data.NumEpochsml[Cand][1]) + ", " + str(reals.data.LatestNiteml[Cand][1]) + "\n"
     table1 = np.array([[int(urID[i]),reals.data.RA[Cand][1],reals.data.DEC[Cand][1],int(reals.data.CandType[Cand][1]),int(reals.data.NumEpochs[Cand][1]),int(reals.data.NumEpochsml[Cand][1]),int(reals.data.LatestNiteml[Cand][1])]])
     print table1
@@ -286,23 +309,19 @@ for i in range(0,numofcan):
     f = open(str(outdir)+ '/'+  htmlfilename, 'w')
     f.write(htmlcode1)
     f.write(htmlcode)
-    ###Collect Stamps for observations of this candidate###
+    #Collect Stamps for observations of this candidate#
     thiscand_stampsdir = outstamps  + '/' + str(int(urID[i]))
     if not os.path.exists(thiscand_stampsdir):
         os.mkdir(thiscand_stampsdir)
-###Create Stamps_table with 8 columns and nobs rows all empty###
+#Create Stamps_table with 8 columns and nobs rows all empty#
     stampstable = ([[None]*8])
     stampsheader = 'Filter, ' + 'Object ID, ' + 'Nite, ' + 'MJD, ' + 'Search, ' + 'Template, ' + 'Difference, ' + 'AutoScan Score,'
     for j in range(0,nobs):
-#        thisobs_nite = str(int(reals.data.NITE[Cand][j]))
-#        thisobs_band = reals.data.BAND[Cand][j]
-#These lines are temporary and must be replaced with general versions###
-        thisobs_nite = realss.NITE[Cand][j]
+        thisobs_nite = str(int(realss.NITE[Cand][j]))
         thisobs_band = realss.BAND[Cand][j]
         ccdnum = realss.CCDNUM[Cand][j]
 #        expdir = "/data/des41.a/data/marcelle/diffimg/local-runs"
         thisobs_ID = realss.OBSID[Cand][j]
-###End of Temporary Lines###
         a = expdir + '/' + thisobs_nite + '/*/dp' + str(season) + '/' + thisobs_band + '_' + str(ccdnum) + '/stamps*'
         print a
         thisobs_stampsdir = glob.glob(a)[0]
@@ -318,7 +337,7 @@ for i in range(0,numofcan):
         search= image('', 'stamps/' + str(int(urID[i]))  + '/srch' + str(thisobs_ID) + '.gif')
         temp  = image('', 'stamps/' + str(int(urID[i])) + '/temp' + str(thisobs_ID) + '.gif')
         diff  = image('', 'stamps/' + str(int(urID[i])) + '/diff' + str(thisobs_ID) + '.gif')
-###Replace in the empty spaces in table with values/pictures###
+#Replace in the empty spaces in table with values/pictures#
         stampstable[j][0] = realss.BAND[Cand][j]
         stampstable[j][1] = "Obs ID Goes here"
         stampstable[j][2] = realss.NITE[Cand][j]
