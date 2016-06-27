@@ -47,6 +47,9 @@ if not os.path.exists(outdir + '/' + 'stamps'):
 if not os.path.exists(outdir + '/' + 'plots'):
     os.mkdir(outdir + '/' + 'plots')
 
+if not os.path.exists(outdir + '/plots/' + 'lightcurves'):
+    os.mkdir(outdir + '/plots/' + 'lightcurves')
+
 outplots = outdir + '/' + 'plots'
 outstamps = outdir + '/' + 'stamps'
 
@@ -274,6 +277,9 @@ rID= reals.data.SNID
 urID= np.unique(rID)
 numofcan = len(urID)
 realss = reals.data
+bands = realss.BAND
+ubands = np.unique(bands)
+
 
 f1= open(str(outdir)+'/'+'allcandidates.txt', 'w')
 header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' NumEpochsml, ' + ' LatestNiteml' 
@@ -281,16 +287,19 @@ f1.write(header1)
 for i in range(0,numofcan):
     Cand =(reals.data.SNID == urID[i])
     #Making Plot of Flux vs MJD for each Candidate#
-    Flux = realss.FLUXCAL 
-    MJD = realss.MJD
-    Fluxerr = realss.FLUXCALERR
-    plt.scatter(MJD[Cand],Flux[Cand], color = 'red')
-    plt.errorbar(MJD[Cand],Flux[Cand], yerr=FluxErr[Cand], ls = 'none')
-    plt.xlabel('MJD')
-    plt.ylabel('Flux')
-    plt.title('Flux vs. MJD for candidate' + str(int(urID[i])))
-    plt.savefig(outdir + '/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '.pdf')
-    plt.clf()             
+    for b in range(0, len(ubands)):
+        Bandcand = realss.BAND[Cand]
+        Band = Bandcand == ubands[b]
+        Flux = realss.FLUXCAL[Cand][Band] 
+        MJD = realss.MJD[Cand][Band]
+        Fluxerr = realss.FLUXCALERR[Cand][Band]
+        plt.scatter(MJD,Flux, color = 'red')
+        plt.errorbar(MJD,Flux, yerr=Fluxerr, ls = 'none')
+        plt.xlabel('MJD')
+        plt.ylabel('Flux')
+        plt.title('Flux vs. MJD for candidate'  + str(int(urID[i])) + ' in '+ str(ubands[b])+ 'Band' )
+        plt.savefig(outdir + '/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '_in_' + str(ubands[b]) + '_Band.pdf')
+        plt.clf()             
     #Finished Making plot of Flux vs MJD for each Candidate#
     line = str(urID[i]) + ", " + str(reals.data.RA[Cand][1]) + ", " + str(reals.data.DEC[Cand][1]) + ", " + str(reals.data.CandType[Cand][1]) + ", " + str(reals.data.NumEpochs[Cand][1]) + ", " + str(reals.data.NumEpochsml[Cand][1]) + ", " + str(reals.data.LatestNiteml[Cand][1]) + "\n"
     table1 = np.array([[int(urID[i]),reals.data.RA[Cand][1],reals.data.DEC[Cand][1],int(reals.data.CandType[Cand][1]),int(reals.data.NumEpochs[Cand][1]),int(reals.data.NumEpochsml[Cand][1]),int(reals.data.LatestNiteml[Cand][1])]])
@@ -350,6 +359,26 @@ for i in range(0,numofcan):
         stampstable.append([None] * 8)
     htmlcode2 = HTML.table(stampstable, header_row= stampsheader.split(', '))
     f.write(htmlcode2)
+    #Making Plot of Flux vs MJD for each Candidate#
+    fvmplottable = ([[None]*len(ubands)])
+    for b in range(0, len(ubands)):
+        Bandcand = realss.BAND[Cand]
+        Band = Bandcand == ubands[b]
+        Flux = realss.FLUXCAL[Cand][Band]
+        MJD = realss.MJD[Cand][Band]
+        Fluxerr = realss.FLUXCALERR[Cand][Band]
+        plt.scatter(MJD,Flux, color = 'red')
+        plt.errorbar(MJD,Flux, yerr=Fluxerr, ls = 'none')
+        plt.xlabel('MJD')
+        plt.ylabel('Flux')
+        plt.title('Flux vs. MJD for candidate'  + str(int(urID[i])) + ' in '+ str(ubands[b])+ 'Band' )
+        plt.savefig(outdir +'/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '_in_' + str(ubands[b]) + '_Band.png')
+        plt.clf()
+        plotpic = image('', 'plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '_in_' + str(ubands[b]) + '_Band.png')
+        fvmplottable[0][b] = plotpic
+    htmlcode3 = HTML.table(fvmplottable)
+    f.write(htmlcode3)
+
                      
 f1.close()  
     
