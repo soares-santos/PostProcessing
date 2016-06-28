@@ -3,6 +3,8 @@ export ROOTDIR=/data/des41.a/data/tosborn
 export SEASON=106
 #####
 
+umask 002
+
 
 #for IFDH
 export EXPERIMENT=des
