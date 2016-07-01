@@ -1,9 +1,9 @@
-##### edit these lines before running the code:
-export ROOTDIR=/data/des41.a/data/tosborn
-export SEASON=106
-#####
 
-umask 002
+##### edit these lines before running the code:
+export ROOTDIR=/pnfs/des/scratch/gw/
+export ROOTDIR2=/data/des41.a/data/tosborn
+export SEASON=46
+#####
 
 
 #for IFDH
@@ -20,13 +20,13 @@ export EUPS_PATH=/cvmfs/des.opensciencegrid.org/eeups/fnaleups:$EUPS_PATH
 #other setups
 setup perl 5.18.1+6 || exit 134
 setup Y2Nstack 1.0.6+18
-setup diffimg gwdevel8 
+setup diffimg gwdevel9 
 setup ftools v6.17 
 export HEADAS=$FTOOLS_DIR
 setup autoscan
 setup easyaccess
 setup extralibs 1.0
-
+#setup html
 echo "EUPS setup complete"
 
 export DES_SERVICES=${HOME}/.desservices.ini 
@@ -36,7 +36,7 @@ export SCAMP_CATALOG_DIR=$PWD/SNscampCatalog
 export AUTOSCAN_PYTHON=$PYTHON_DIR/bin/python
 export DES_ROOT=/data/des20.b/data/SNDATA_ROOT/INTERNAL/DES 
 export TOPDIR_SNFORCEPHOTO_IMAGES=${ROOTDIR}/forcephoto/images/dp${SEASON} 
-export TOPDIR_SNFORCEPHOTO_OUTPUT=${ROOTDIR}/forcephoto/output/dp${SEASON}   
+export TOPDIR_SNFORCEPHOTO_OUTPUT=${ROOTDIR2}/forcephoto/output/dp${SEASON}   
 export TOPDIR_DATAFILES_PUBLIC=${ROOTDIR}/DESSN_PIPELINE/SNFORCE/DATAFILES_TEST
 export TOPDIR_WSTEMPLATES=${ROOTDIR}/WSTemplates
 export TOPDIR_TEMPLATES=${ROOTDIR}/WSTemplates
