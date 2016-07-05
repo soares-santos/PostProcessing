@@ -176,10 +176,10 @@ connection.query_and_save(query,filename)
 connection.close()
 
 ### FOR THE FIRST RUN EXIT HERE TO LEARN NAMES OF VALUES WE NEED###
-sys.exit('needed to finish early')
+print "Data Made"
  
 
-print "Plot efficiency"
+print "Read Data"
 
 #Make plots Section#
 ###Plot1 Efficiency Plot ###
@@ -213,7 +213,7 @@ fmaskz = (fdatag.BAND=='z')
 tmaski = (truth.BAND == 'i')
 tmaskz = (truth.BAND == 'z')
 
-
+print "Plot Efficiency"
 
 for i in range(0,len(ubands)):
     fmask= (fdatag.BAND == ubands[i])
@@ -316,7 +316,7 @@ for i in range(0,numofcan):
     nobs = len(reals.data.BAND[Cand])
     seasoncol = np.ones((nobs,), dtype = np.int)*int(season)
     print seasoncol
-    table = np.column_stack((reals.data.BAND[Cand], reals.data.XPIX[Cand], reals.data.YPIX[Cand], reals.data.MAG[Cand], reals.data.NITE[Cand], reals.data.MJD[Cand], seasoncol))
+    table = np.column_stack((reals.data.BAND[Cand], reals.data.XPIX[Cand], reals.data.YPIX[Cand], reals.data.MAG[Cand], reals.data.OBSNITE[Cand], reals.data.MJD[Cand], seasoncol))
     np.savetxt(str(outdir)+'/'+filename, table, fmt = '%s', header = header)
     htmlcode = HTML.table(table.tolist(),header_row = header.split(' '))
     htmlcode1 = HTML.table(table1.tolist(), header_row = header1.split(', '))
@@ -331,9 +331,9 @@ for i in range(0,numofcan):
     stampstable = ([[None]*8])
     stampsheader = 'Filter, ' + 'Object ID, ' + 'Nite, ' + 'MJD, ' + 'Search, ' + 'Template, ' + 'Difference, ' + 'AutoScan Score,'
     for j in range(0,nobs):
-        thisobs_nite = str(int(realss.NITE[Cand][j]))
+        thisobs_nite = str(int(realss.OBSNITE[Cand][j]))
         thisobs_band = realss.BAND[Cand][j]
-        ccdnum = realss.CCDNUM[Cand][j]
+        ccdnum = realss.OBSCCDNUM[Cand][j]
 #        expdir = "/data/des41.a/data/marcelle/diffimg/local-runs"
         thisobs_ID = realss.OBSID[Cand][j]
         a = expdir + '/' + thisobs_nite + '/*/dp' + str(season) + '/' + thisobs_band + '_' + str(ccdnum) + '/stamps*'
@@ -354,10 +354,10 @@ for i in range(0,numofcan):
 #Replace in the empty spaces in table with values/pictures#
         stampstable[j][0] = realss.BAND[Cand][j]
         stampstable[j][1] = "Obs ID Goes here"
-        stampstable[j][2] = realss.NITE[Cand][j]
+        stampstable[j][2] = realss.OBSNITE[Cand][j]
         stampstable[j][3] = realss.MJD[Cand][j]
         stampstable[j][4] = search
-        stampstable[j][5] = "temp goes here"
+        stampstable[j][5] = search
         stampstable[j][5] = temp
         stampstable[j][6] = diff
         stampstable[j][7] = realss.PHOTPROB[Cand][j]
