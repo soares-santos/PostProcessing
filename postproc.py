@@ -54,11 +54,11 @@ outplots = outdir + '/' + 'plots'
 outstamps = outdir + '/' + 'stamps'
 
 print "Read environment variables"
-
-forcedir = os.environ["TOPDIR_SNFORCEPHOTO_IMAGES"]
-
-season= os.environ["SEASON"]
+season= str(args.season)
 run = "dp"+str(season)
+
+forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
+print forcedir
 
 #print season
 
@@ -94,19 +94,20 @@ for expnum in args.expnums:
     e=str(expnum)
     print "Check dir content for exposure " +e
     d= expdir+"/*/"+e+"/"+run
-    runmonlog=d+"RUNMON*.LOG"
+    runmonlog=d+"/RUNEND*.LOG"
+    print runmonlog
     nfiles= len(glob.glob(runmonlog))
     if nfiles != 1:
         print "runmonlog for exposure" + e + " not found"
         sys.exit(1)
 ###Think about what to do in the case that the file is not found###
-    psf= forcedir+"/*/*"+e+"*.psf"
-    diff = forcedir+"/*/*"+e+"*_diff.fits"
-    diffmh = forcedir+"/*/*"+e+"*_diff_mh.fits"
+    psf= forcedir+"/*"+e+"*.psf"
+    diff = forcedir+"/*"+e+"*_diff.fits"
+    diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
 
     for filetype in (psf, diff, diffmh):
         if len(glob.glob(filetype)) == 0 :
-            print "files not found"
+            print "files" + str(filetype) + " not found"
 
 print "Run GWFORCE"
 
@@ -117,7 +118,8 @@ print "Run GWFORCE"
 #   -ncore          4     \
 #   -writeDB 
 
-a= 'forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore
+#Remove FORCELIST Command once we figure out the actual solutionxs
+a= 'forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore + ' -FORCELIST' 
 
 if writeDB == "on":
     a = a+ ' -writeDB ' 
@@ -141,14 +143,14 @@ print "Run GWmakeDataFiles - real"
 #   -outFile_stdout  makeDataFiles_real.stdout  \
 #   -outDir_data   GWevent2_numepoch1_iz_real_text \
 
-b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
+b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season '+ season  + '  -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
 
 print b 
 subprocess.call(b, shell=True)
 
 print "Run GWmakeDataFiles - fake"
 
-b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
+b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season ' + season + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
 
 print b
 subprocess.call(b, shell=True)
@@ -164,7 +166,9 @@ schema = 'marcelle'
 # the query you want to run to get the truth table data                         
 query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT, BAND, NITE, MJD from '+ schema +'.SNFAKEIMG where EXPNUM IN ('+explist+') order by SNFAKE_ID'
 
-# the file where you want to save the truth table                               
+# the file where you want to save the truth table                              
+
+ 
 filename= config.get('GWmakeDataFiles-fake', 'fake_input')
 
 connection=easyaccess.connect(db)
@@ -172,8 +176,8 @@ connection.query_and_save(query,filename)
 connection.close()
 
 ### FOR THE FIRST RUN EXIT HERE TO LEARN NAMES OF VALUES WE NEED###
-
-exit 
+sys.exit('needed to finish early')
+ 
 
 print "Plot efficiency"
 
@@ -188,8 +192,17 @@ fakes = diffimg.DataSet(outDir_datafake, label = 'fakes')
 fakes.get_fakes_input(config.get('GWmakeDataFiles-fake', 'fake_input'))
 truth = fakes.fakes_input
 
+
+
 rdatag = reals.set_mask(PHOTFLAG_bit=4096)
 fdatag = fakes.set_mask(PHOTFLAG_bit=4096)
+
+rID= reals.data.SNID
+urID= np.unique(rID)
+numofcan = len(urID)
+realss = reals.data
+bands = realss.BAND
+ubands = np.unique(bands)
 
 bins = bins = np.arange(17,25,0.5)
 
@@ -199,6 +212,22 @@ fmaski = (fdatag.BAND=='i')
 fmaskz = (fdatag.BAND=='z')
 tmaski = (truth.BAND == 'i')
 tmaskz = (truth.BAND == 'z')
+
+
+
+for i in range(0,len(ubands)):
+    fmask= (fdatag.BAND == ubands[i])
+    tmask = (truth.BAND == ubands[i])
+    fhist, bin_edges = np.histogram(fdatag.SIMMAG[fmask],bins = bins)
+    thist, bin_edges = np.histogram(truth.TRUEMAG[tmask], bins=bins)
+    plt.plot(bins[1:], fhist*100.0/thist, label = str(ubands[i]), lw=4)
+    plt.scatter(bins[1:], fhist*100.0/thist, lw=4)
+    plt.title('Efficiency')
+    plt.xlabel('Mag')
+    plt.ylabel('Percent Found')
+    plt.savefig(outplots + 'Efficiency for ' + str(ubands[i]) + '.png')
+    plt.clf()
+
 
 f_ihist, bin_edges = np.histogram(fdatag.SIMMAG[fmaski],bins=bins)
 f_zhist, bin_edges = np.histogram(fdatag.SIMMAG[fmaskz],bins=bins)
@@ -272,35 +301,11 @@ print "Save candidates info"
 ###Write data files for each candidate including info discussed###
 
 
-
-rID= reals.data.SNID
-urID= np.unique(rID)
-numofcan = len(urID)
-realss = reals.data
-bands = realss.BAND
-ubands = np.unique(bands)
-
-
 f1= open(str(outdir)+'/'+'allcandidates.txt', 'w')
 header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' NumEpochsml, ' + ' LatestNiteml' 
 f1.write(header1)
 for i in range(0,numofcan):
     Cand =(reals.data.SNID == urID[i])
-    #Making Plot of Flux vs MJD for each Candidate#
-    for b in range(0, len(ubands)):
-        Bandcand = realss.BAND[Cand]
-        Band = Bandcand == ubands[b]
-        Flux = realss.FLUXCAL[Cand][Band] 
-        MJD = realss.MJD[Cand][Band]
-        Fluxerr = realss.FLUXCALERR[Cand][Band]
-        plt.scatter(MJD,Flux, color = 'red')
-        plt.errorbar(MJD,Flux, yerr=Fluxerr, ls = 'none')
-        plt.xlabel('MJD')
-        plt.ylabel('Flux')
-        plt.title('Flux vs. MJD for candidate'  + str(int(urID[i])) + ' in '+ str(ubands[b])+ 'Band' )
-        plt.savefig(outdir + '/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '_in_' + str(ubands[b]) + '_Band.pdf')
-        plt.clf()             
-    #Finished Making plot of Flux vs MJD for each Candidate#
     line = str(urID[i]) + ", " + str(reals.data.RA[Cand][1]) + ", " + str(reals.data.DEC[Cand][1]) + ", " + str(reals.data.CandType[Cand][1]) + ", " + str(reals.data.NumEpochs[Cand][1]) + ", " + str(reals.data.NumEpochsml[Cand][1]) + ", " + str(reals.data.LatestNiteml[Cand][1]) + "\n"
     table1 = np.array([[int(urID[i]),reals.data.RA[Cand][1],reals.data.DEC[Cand][1],int(reals.data.CandType[Cand][1]),int(reals.data.NumEpochs[Cand][1]),int(reals.data.NumEpochsml[Cand][1]),int(reals.data.LatestNiteml[Cand][1])]])
     print table1
