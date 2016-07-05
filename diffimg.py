@@ -104,8 +104,11 @@ def read_data_files(path='.',filenamepattern='*.dat'):
         XPIX = np.zeros(0,dtype=float)
         YPIX = np.zeros(0,dtype=float)   
         SIMMAG = np.zeros(0,dtype=float) # this coll exists only on files for fakes
-        NITE = np.zeros(0,dtype=int)
-     
+        OBSNITE = np.zeros(0,dtype=int)
+	SNOBJID = np.zeros(0,dtype=int)
+	EXPNUM  = np.zeros(0,dtype=int)
+	OBSCCDNUM  = np.zeros(0,dtype=int)
+
         for filename in glob.glob(path+'/'+filenamepattern):
             thisFAKE = -9
             thisRA = -999.0
@@ -125,6 +128,10 @@ def read_data_files(path='.',filenamepattern='*.dat'):
             thisNumEpochs = -99
             thisNumEpochsml= -99
             NOBS = 0
+	    thisOBSNITE = -999
+	    thisSNOBJID = -999
+	    thisEXPNUM  = -999
+	    thisOBSCCDNUM  = -999
             is_data_section = False
             f = open(filename,"r")
             while not is_data_section:
@@ -182,6 +189,9 @@ def read_data_files(path='.',filenamepattern='*.dat'):
                 GAIN = np.append(GAIN,float(line[12]))
                 XPIX = np.append(XPIX,float(line[13]))
                 YPIX = np.append(YPIX,float(line[14]))
+		OBSNITE = np.append(OBSNITE,float(line[15]))
+		EXPNUM = np.append(EXPNUM,float(line[16]))
+		OBSCCDNUM = np.append(OBSCCDNUM,float(line[17]))
                 if thisFAKE == 1 : 
 			SIMMAG = np.append(SIMMAG,float(line[15]))
 		else:
@@ -201,13 +211,13 @@ def read_data_files(path='.',filenamepattern='*.dat'):
             FAKEGALID,FAKERA,FAKEDEC,FAKEANGSEP,FAKEZ,\
             FAKEPEAKMJD,FAKEHOSTSEP,MJD,BAND,FIELD,FLUXCAL,\
             FLUXCALERR,PHOTFLAG,PHOTPROB,ZPFLUX,PSF,SKYSIG,\
-            SKYSIGT,GAIN,XPIX,YPIX,SIMMAG,NITE,MAG,MAGERR
+            SKYSIGT,GAIN,XPIX,YPIX,OBSNITE,EXPNUM,OBSCCDNUM,SIMMAG,NITE,MAG,MAGERR
 
 class DataSet:
 
 	def __init__(self,path='.',filenamepattern='*.dat',label='sample'): 
 		
-		self.data = np.core.records.fromarrays(read_data_files(path,filenamepattern),names="FAKE,RA,DEC,SNID,CandType,CCDNUM,NumEpochs,NumEpochsml,LatestNiteml,FAKEID,FAKEGALID,FAKERA,FAKEDEC,FAKEANGSEP,FAKEZ,FAKEPEAKMJD,FAKEHOSTSEP,MJD,BAND,FIELD,FLUXCAL,FLUXCALERR,PHOTFLAG,PHOTPROB,ZPFLUX,PSF,SKYSIG,SKYSIGT,GAIN,XPIX,YPIX,SIMMAG,NITE,MAG,MAGERR")
+		self.data = np.core.records.fromarrays(read_data_files(path,filenamepattern),names="FAKE,RA,DEC,SNID,CandType,CCDNUM,NumEpochs,NumEpochsml,LatestNiteml,FAKEID,FAKEGALID,FAKERA,FAKEDEC,FAKEANGSEP,FAKEZ,FAKEPEAKMJD,FAKEHOSTSEP,MJD,BAND,FIELD,FLUXCAL,FLUXCALERR,PHOTFLAG,PHOTPROB,ZPFLUX,PSF,SKYSIG,SKYSIGT,GAIN,XPIX,YPIX,OBSNITE,EXPNUM,OBSCCDNUM,SIMMAG,NITE,MAG,MAGERR")
 
 		self.label = label
 			
