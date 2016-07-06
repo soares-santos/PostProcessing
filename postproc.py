@@ -333,33 +333,35 @@ for i in range(0,numofcan):
     for j in range(0,nobs):
         thisobs_nite = str(int(realss.OBSNITE[Cand][j]))
         thisobs_band = realss.BAND[Cand][j]
-        ccdnum = realss.OBSCCDNUM[Cand][j]
+        ccdnum = int(realss.OBSCCDNUM[Cand][j])
+        if int(realss.OBSCCDNUM[Cand][j]) <10:
+            ccdnum = '0' + str(int(realss.OBSCCDNUM[Cand][j]))
 #        expdir = "/data/des41.a/data/marcelle/diffimg/local-runs"
 #        thisobs_ID = realss.OBSID[Cand][j]
-        a = expdir + '/' + thisobs_nite + '/*/dp' + str(season) + '/' + thisobs_band + '_' + str(int(ccdnum)) + '/stamps*'
+        a = expdir + '/' + thisobs_nite + '/*/dp' + str(season) + '/' + thisobs_band + '_' + str(ccdnum) + '/stamps*'
         print a
         thisobs_stampsdir = glob.glob(a)[0]
         print thisobs_stampsdir
-        filenamediff = thisobs_stampsdir + '/diff' + str(thisobs_ID) + '.gif'
-        filenamesrch = thisobs_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
-        filenametemp = thisobs_stampsdir + '/temp' + str(thisobs_ID) + '.gif' 
-        shutil.copy(filenamediff, thiscand_stampsdir)
-        shutil.copy(filenamesrch, thiscand_stampsdir)
+### MUST UNDO THESE COMMENTS ONCE OBSID IS DEFINED TERM ###
+#        filenamediff = thisobs_stampsdir + '/diff' + str(thisobs_ID) + '.gif'
+#        filenamesrch = thisobs_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
+#        filenametemp = thisobs_stampsdir + '/temp' + str(thisobs_ID) + '.gif' 
+#        shutil.copy(filenamediff, thiscand_stampsdir)
+#        shutil.copy(filenamesrch, thiscand_stampsdir)
 #        shutil.copy(filenametemp, thiscand_stampsdir)
-        path1 = thiscand_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
-        print path1
-        search= image('', 'stamps/' + str(int(urID[i]))  + '/srch' + str(thisobs_ID) + '.gif')
-        temp  = image('', 'stamps/' + str(int(urID[i])) + '/temp' + str(thisobs_ID) + '.gif')
-        diff  = image('', 'stamps/' + str(int(urID[i])) + '/diff' + str(thisobs_ID) + '.gif')
+#        path1 = thiscand_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
+#        print path1
+#        search= image('', 'stamps/' + str(int(urID[i]))  + '/srch' + str(thisobs_ID) + '.gif')
+#        temp  = image('', 'stamps/' + str(int(urID[i])) + '/temp' + str(thisobs_ID) + '.gif')
+#        diff  = image('', 'stamps/' + str(int(urID[i])) + '/diff' + str(thisobs_ID) + '.gif')
 #Replace in the empty spaces in table with values/pictures#
         stampstable[j][0] = realss.BAND[Cand][j]
         stampstable[j][1] = "Obs ID Goes here"
         stampstable[j][2] = realss.OBSNITE[Cand][j]
         stampstable[j][3] = realss.MJD[Cand][j]
-        stampstable[j][4] = search
-        stampstable[j][5] = search
-        stampstable[j][5] = temp
-        stampstable[j][6] = diff
+        stampstable[j][4] = "search"
+        stampstable[j][5] = "temp"
+        stampstable[j][6] = "diff"
         stampstable[j][7] = realss.PHOTPROB[Cand][j]
         stampstable.append([None] * 8)
     htmlcode2 = HTML.table(stampstable, header_row= stampsheader.split(', '))
