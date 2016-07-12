@@ -1,3 +1,4 @@
+import os
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt 
@@ -5,12 +6,11 @@ import pyfits as py
 import argparse
 import ConfigParser
 import glob, sys, datetime, getopt
-import os
 import subprocess
 import diffimg
 import easyaccess
 import numpy as np
-import HTML
+#import HTML
 ###FOR TESTING PURPOSES###
 ### 475914 475915 475916 476960 476961 476962 482859 482860 482861 ###
 ###SEASON= 46###
@@ -90,6 +90,7 @@ print "Check RUNMON outputs"
 ### Query this from database ###
 
 #Read in and locate files#
+goodexpnums = []
 for expnum in args.expnums: 
     e=str(expnum)
     print "Check dir content for exposure " +e
@@ -99,18 +100,30 @@ for expnum in args.expnums:
     nfiles= len(glob.glob(runmonlog))
     if nfiles != 1:
         print "runmonlog for exposure" + e + " not found"
-        sys.exit(1)
+        continue
 ###Think about what to do in the case that the file is not found###
     psf= forcedir+"/*"+e+"*.psf"
     diff = forcedir+"/*"+e+"*_diff.fits"
     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
-
+    good = True
     for filetype in (psf, diff, diffmh):
         if len(glob.glob(filetype)) == 0 :
-            print "files" + str(filetype) + " not found"
-
+            print "files " + str(filetype) + " not found"
+ #           good = False
+    isstartedfile = os.path.join(outdir,"isstarted",str(expnum) + '.txt')
+    if os.path.exists(isstartedfile):
+        good = False
+        print "Skipping expnum because already started",expnum
+    if good:
+        goodexpnums.append(expnum)
+        if not os.path.exists(os.path.join(outdir,"isstarted")):
+            os.mkdir(os.path.join(outdir,"isstarted"))
+        os.system("touch "+ isstartedfile)
 print "Run GWFORCE"
-
+expnums= goodexpnums
+if len(expnums)==0:
+    sys.exit()
+sys.exit()
 #run "gwforce" section#
 #forcePhoto_master.pl     \
 #   -season         107   \
