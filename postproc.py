@@ -33,7 +33,7 @@ parser.add_argument('--triggerid', help= 'Ligo trigger is required', type=str)
 
 parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 0)
 parser.add_argument('--debug', type= bool, help='Turn on Webpage generation', default= False)
-parser.add_argument('--ups', type= bool, default False)
+parser.add_argument('--ups', type= bool, default=False)
 
 args = parser.parse_args()
 expnums = args.expnums
