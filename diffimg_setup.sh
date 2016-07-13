@@ -13,12 +13,13 @@ export PYTHONPATH=/cvmfs/fermilab.opensciencegrid.org/products/common/db/../prd/
 export IFDH_NO_PROXY=1
 export IFDHC_LIB=/cvmfs/fermilab.opensciencegrid.org/products/common/prd/ifdhc/v1_8_10/Linux64bit-2-6-2-12/lib
 export IFDH_CP_MAXRETRIES=2
-/cvmfs/grid.cern.ch/util/cvmfs-uptodate /cvmfs/des.opensciencegrid.org
+#/cvmfs/grid.cern.ch/util/cvmfs-uptodate /cvmfs/des.opensciencegrid.org
 source /cvmfs/des.opensciencegrid.org/2015_Q2/eeups/SL6/eups/desdm_eups_setup.sh
+source /cvmfs/des.opensciencegrid.org/eeups/startup.sh
 export EUPS_PATH=/cvmfs/des.opensciencegrid.org/eeups/fnaleups:$EUPS_PATH
 
 #other setups
-setup perl 5.18.1+6 || exit 134
+setup perl 5.18.1+6 # || exit 134
 setup Y2Nstack 1.0.6+18
 setup diffimg gwdevel11 
 setup ftools v6.17 

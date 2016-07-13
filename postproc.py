@@ -10,7 +10,7 @@ import subprocess
 import diffimg
 import easyaccess
 import numpy as np
-import HTML
+#import HTML
 ###FOR TESTING PURPOSES###
 ### 475914 475915 475916 482859 482860 482861 ###
 ###SEASON= 46###
@@ -126,7 +126,6 @@ print "Run GWFORCE"
 expnums= goodexpnums
 if len(expnums)==0:
     sys.exit()
-sys.exit()
 #run "gwforce" section#
 #forcePhoto_master.pl     \
 #   -season         107   \
@@ -135,7 +134,7 @@ sys.exit()
 #   -writeDB 
 
 #Remove FORCELIST Command once we figure out the actual solutionxs
-a= 'yes | forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore + ' -FORCELIST' 
+a= 'forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore + ' -FORCELIST' 
 
 if writeDB == "on":
     a = a+ ' -writeDB ' 
