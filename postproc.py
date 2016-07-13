@@ -19,7 +19,7 @@ def image(text, url):
     return "<center>%s</center><img src='%s'>" % (text, url)
 
 print "Read user input"
-
+###CREATE NPZ FILE###
 ### WE NEED EXPLIST TO ENSURE ALL EXPOSURE NUMBERS ARE ACCOUNTED FOR ###
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -29,7 +29,10 @@ parser.add_argument('--outputdir', metavar='d', type=str, help='Directory locati
 
 parser.add_argument('--season', help='season is required', default=107, type=int)
 
+parser.add_argument('--triggerid', help= 'Ligo trigger is required', type=str)
+
 parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 0)
+parser.add_argument('--debug', type= bool, help='Turn on Webpage generation', default= False)
 
 args = parser.parse_args()
 expnums = args.expnums
@@ -103,10 +106,10 @@ for expnum in args.expnums:
         continue
 ###Think about what to do in the case that the file is not found###
     psf= forcedir+"/*"+e+"*.psf"
-    diff = forcedir+"/*"+e+"*_diff.fits"
+#    diff = forcedir+"/*"+e+"*_diff.fits"
     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
     good = True
-    for filetype in (psf, diff, diffmh):
+    for filetype in (psf, diffmh):
         if len(glob.glob(filetype)) == 0 :
             print "files " + str(filetype) + " not found"
  #           good = False
@@ -319,6 +322,9 @@ header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' Num
 f1.write(header1)
 for i in range(0,numofcan):
     Cand =(reals.data.SNID == urID[i])
+    savedata(reals,urID[i],outdir)
+#    if not debug:
+#        continue
     line = str(urID[i]) + ", " + str(reals.data.RA[Cand][1]) + ", " + str(reals.data.DEC[Cand][1]) + ", " + str(reals.data.CandType[Cand][1]) + ", " + str(reals.data.NumEpochs[Cand][1]) + ", " + str(reals.data.NumEpochsml[Cand][1]) + ", " + str(reals.data.LatestNiteml[Cand][1]) + "\n"
     table1 = np.array([[int(urID[i]),reals.data.RA[Cand][1],reals.data.DEC[Cand][1],int(reals.data.CandType[Cand][1]),int(reals.data.NumEpochs[Cand][1]),int(reals.data.NumEpochsml[Cand][1]),int(reals.data.LatestNiteml[Cand][1])]])
     print table1
@@ -377,6 +383,7 @@ for i in range(0,numofcan):
         stampstable[j][6] = "diff"
         stampstable[j][7] = realss.PHOTPROB[Cand][j]
         stampstable.append([None] * 8)
+        
     htmlcode2 = HTML.table(stampstable, header_row= stampsheader.split(', '))
     f.write(htmlcode2)
     #Making Plot of Flux vs MJD for each Candidate#
@@ -404,8 +411,33 @@ f1.close()
     
 print "SUCCESS"    
 
-
-
+def savedata(reals,urID,outdir,trigger_id):
+    Cand =(reals.data.SNID == urID)
+    band = reals.data.BAND[Cand]
+    x = reals.data.XPIX[Cand]
+    y = reals.data.YPIX[Cand]
+    nite = reals.data.NITE[Cand]
+    mjd = reals.data.MJD[Cand]
+    expnum= reals.data.EXPNUM[Cand]
+    ccdnum= reals.data.CCDNUM[Cand] 
+    photprob= reals.data.PHOTPROB[Cand]
+#    thisobs_ID=reals.data.OBSID[Cand]
+    thisobs_ID=reals.data.MJD[Cand]
+    search,temp,diff=[],[],[]
+    for o in thisobs_ID:
+        search.append('stamps/' + str(int(urID))  + '/srch' + str(o) + '.gif')
+        temp.append('stamps/' + str(int(urID))  + '/temp' + str(o) + '.gif')
+        diff.append('stamps/' + str(int(urID))  + '/diff' + str(o) + '.gif')
+    ra = reals.data.RA[Cand][0]
+    dec= reals.data.DEC[Cand][0]
+    field = reals.data.FIELD[Cand][0]
+    lcplot = 'plots/lightcurves/FluxvsMJD_for_cand_'+ str(urID)+ '_in_i_Band.png'
+    print search
+    np.savez(os.path.join(outdir,urID+'.npz'),
+             band=band,x=x,y=y,nite=nite,mjd=mjd,expnum=expnum,ccdnum=ccdnum,
+             photprob=photprob,thisobs_ID=thisobs_ID,search=search,temp=temp,
+             diff=diff,ra=ra,dec=dec,field=field,lcplot=lcplot)
+             
 
 
 #Save output files in specific and organized directories#
