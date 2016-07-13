@@ -33,12 +33,13 @@ parser.add_argument('--triggerid', help= 'Ligo trigger is required', type=str)
 
 parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 0)
 parser.add_argument('--debug', type= bool, help='Turn on Webpage generation', default= False)
+parser.add_argument('--ups', type= bool, default False)
 
 args = parser.parse_args()
 expnums = args.expnums
 print args.expnums
 print args.outputdir
-
+ups= args.ups
 outdir = str(args.outputdir)
 
 if not os.path.exists(outdir):
@@ -70,7 +71,11 @@ print forcedir
 print "Read config file"
 
 config = ConfigParser.ConfigParser()
-inifile = config.read('./postproc.ini')[0]
+if ups:
+    cpath=os.environ["GWPOST_DIR"]
+    infile = config.read(os.path.join(cpath,"postproc.ini"))[0]
+else:
+    inifile = config.read('./postproc.ini')[0]
 
 expdir = config.get('data', 'exp')
 ncore = config.get('GWFORCE', 'ncore')
