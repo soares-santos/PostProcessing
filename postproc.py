@@ -10,7 +10,7 @@ import subprocess
 import diffimg
 import easyaccess
 import numpy as np
-#import HTML
+import HTML
 ###FOR TESTING PURPOSES###
 ### 475914 475915 475916 482859 482860 482861 ###
 ###SEASON= 46###
@@ -135,7 +135,7 @@ sys.exit()
 #   -writeDB 
 
 #Remove FORCELIST Command once we figure out the actual solutionxs
-a= 'forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore + ' -FORCELIST' 
+a= 'yes | forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore + ' -FORCELIST' 
 
 if writeDB == "on":
     a = a+ ' -writeDB ' 
