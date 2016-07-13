@@ -12,7 +12,7 @@ import easyaccess
 import numpy as np
 #import HTML
 ###FOR TESTING PURPOSES###
-### 475914 475915 475916 476960 476961 476962 482859 482860 482861 ###
+### 475914 475915 475916 482859 482860 482861 ###
 ###SEASON= 46###
 #Read User input#
 def image(text, url):
