@@ -103,10 +103,10 @@ for expnum in args.expnums:
         continue
 ###Think about what to do in the case that the file is not found###
     psf= forcedir+"/*"+e+"*.psf"
-    diff = forcedir+"/*"+e+"*_diff.fits"
+#    diff = forcedir+"/*"+e+"*_diff.fits"
     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
     good = True
-    for filetype in (psf, diff, diffmh):
+    for filetype in (psf, diffmh):
         if len(glob.glob(filetype)) == 0 :
             print "files " + str(filetype) + " not found"
  #           good = False
