@@ -10,7 +10,7 @@ import subprocess
 import diffimg
 import easyaccess
 import numpy as np
-#import HTML
+import HTML
 ###FOR TESTING PURPOSES###
 ### 475914 475915 475916 482859 482860 482861 ###
 ###SEASON= 46###
