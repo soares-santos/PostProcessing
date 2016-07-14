@@ -220,8 +220,8 @@ print "Read Data"
 ###Plot5 Magerror Distribution ###
 ###Plots should include all bands###
 
-reals = diffimg.DataSet(outDir_datareal, label = 'reals')
-fakes = diffimg.DataSet(outDir_datafake, label = 'fakes')
+reals = diffimg.DataSet(os.path.join(outdir,outDir_datareal), label = 'reals')
+fakes = diffimg.DataSet(os.path.join(outdir,outDir_datafake), label = 'fakes')
 ###Need to generate fakes input on own###
 os.system('mv fakes_truth.tab '+outdir)
 fakes.get_fakes_input(os.path.join(outdir,config.get('GWmakeDataFiles-fake', 'fake_input')))
