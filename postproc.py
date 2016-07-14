@@ -40,7 +40,7 @@ def savedata(reals,urID,outdir,trigger_id):
     field = reals.data.FIELD[Cand][0]
     lcplot = 'plots/lightcurves/FluxvsMJD_for_cand_'+ str(urID)+ '_in_i_Band.png'
     print search
-    np.savez(os.path.join(outdir,urID+'.npz'),
+    np.savez(os.path.join(outdir,str(urID)+'.npz'),
              band=band,x=x,y=y,nite=nite,mjd=mjd,expnum=expnum,ccdnum=ccdnum,
              photprob=photprob,thisobs_ID=thisobs_ID,search=search,temp=temp,
              diff=diff,ra=ra,dec=dec,field=field,lcplot=lcplot)
