@@ -86,7 +86,7 @@ outstamps = outdir + '/' + 'stamps'
 print "Read environment variables"
 season= str(args.season)
 run = "dp"+str(season)
-
+triggerid = str(ars.triggerid)
 forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
 print forcedir
 
@@ -367,7 +367,7 @@ header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' Num
 f1.write(header1)
 for i in range(0,numofcan):
     Cand =(reals.data.SNID == urID[i])
-    savedata(reals,urID[i],outdir)
+    savedata(reals,urID[i],outdir,triggerid)
 #    if not debug:
 #        continue
     line = str(urID[i]) + ", " + str(reals.data.RA[Cand][1]) + ", " + str(reals.data.DEC[Cand][1]) + ", " + str(reals.data.CandType[Cand][1]) + ", " + str(reals.data.NumEpochs[Cand][1]) + ", " + str(reals.data.NumEpochsml[Cand][1]) + ", " + str(reals.data.LatestNiteml[Cand][1]) + "\n"
