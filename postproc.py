@@ -94,7 +94,7 @@ outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
 outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
 #outDir_datafake = os.path.join(outdir,outDir_datafake)
 fakeversion = config.get('GWmakeDataFiles-fake', 'version')
-fakeversion = os.path.join(outdir,fakeversion)
+#fakeversion = os.path.join(outdir,fakeversion)
 
 
 print "Check RUNMON outputs"
@@ -175,7 +175,7 @@ print b
 if ups:
     gwpostdir = os.environ['GWPOST_DIR']
     os.chdir(outdir)
-    os.system("cp "+gwpostdir+"/FAKES_OVERLAID_" + fakeversion.split('/')[-1]+ ".DAT " + outdir)
+    os.system("cp "+gwpostdir+"/FAKES_OVERLAID_" + fakeversion + ".DAT " + outdir)
 subprocess.call(b, shell=True)
 
 print "Run GWmakeDataFiles - fake"
