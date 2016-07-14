@@ -17,6 +17,32 @@ import HTML
 #Read User input#
 def image(text, url):
     return "<center>%s</center><img src='%s'>" % (text, url)
+def savedata(reals,urID,outdir,trigger_id):
+    Cand =(reals.data.SNID == urID)
+    band = reals.data.BAND[Cand]
+    x = reals.data.XPIX[Cand]
+    y = reals.data.YPIX[Cand]
+    nite = reals.data.NITE[Cand]
+    mjd = reals.data.MJD[Cand]
+    expnum= reals.data.EXPNUM[Cand]
+    ccdnum= reals.data.CCDNUM[Cand] 
+    photprob= reals.data.PHOTPROB[Cand]
+#    thisobs_ID=reals.data.OBSID[Cand]
+    thisobs_ID=reals.data.MJD[Cand]
+    search,temp,diff=[],[],[]
+    for o in thisobs_ID:
+        search.append('stamps/' + str(int(urID))  + '/srch' + str(o) + '.gif')
+        temp.append('stamps/' + str(int(urID))  + '/temp' + str(o) + '.gif')
+        diff.append('stamps/' + str(int(urID))  + '/diff' + str(o) + '.gif')
+    ra = reals.data.RA[Cand][0]
+    dec= reals.data.DEC[Cand][0]
+    field = reals.data.FIELD[Cand][0]
+    lcplot = 'plots/lightcurves/FluxvsMJD_for_cand_'+ str(urID)+ '_in_i_Band.png'
+    print search
+    np.savez(os.path.join(outdir,urID+'.npz'),
+             band=band,x=x,y=y,nite=nite,mjd=mjd,expnum=expnum,ccdnum=ccdnum,
+             photprob=photprob,thisobs_ID=thisobs_ID,search=search,temp=temp,
+             diff=diff,ra=ra,dec=dec,field=field,lcplot=lcplot)
 
 print "Read user input"
 ###CREATE NPZ FILE###
@@ -430,32 +456,7 @@ f1.close()
     
 print "SUCCESS"    
 
-def savedata(reals,urID,outdir,trigger_id):
-    Cand =(reals.data.SNID == urID)
-    band = reals.data.BAND[Cand]
-    x = reals.data.XPIX[Cand]
-    y = reals.data.YPIX[Cand]
-    nite = reals.data.NITE[Cand]
-    mjd = reals.data.MJD[Cand]
-    expnum= reals.data.EXPNUM[Cand]
-    ccdnum= reals.data.CCDNUM[Cand] 
-    photprob= reals.data.PHOTPROB[Cand]
-#    thisobs_ID=reals.data.OBSID[Cand]
-    thisobs_ID=reals.data.MJD[Cand]
-    search,temp,diff=[],[],[]
-    for o in thisobs_ID:
-        search.append('stamps/' + str(int(urID))  + '/srch' + str(o) + '.gif')
-        temp.append('stamps/' + str(int(urID))  + '/temp' + str(o) + '.gif')
-        diff.append('stamps/' + str(int(urID))  + '/diff' + str(o) + '.gif')
-    ra = reals.data.RA[Cand][0]
-    dec= reals.data.DEC[Cand][0]
-    field = reals.data.FIELD[Cand][0]
-    lcplot = 'plots/lightcurves/FluxvsMJD_for_cand_'+ str(urID)+ '_in_i_Band.png'
-    print search
-    np.savez(os.path.join(outdir,urID+'.npz'),
-             band=band,x=x,y=y,nite=nite,mjd=mjd,expnum=expnum,ccdnum=ccdnum,
-             photprob=photprob,thisobs_ID=thisobs_ID,search=search,temp=temp,
-             diff=diff,ra=ra,dec=dec,field=field,lcplot=lcplot)
+
              
 
 
