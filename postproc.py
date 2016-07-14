@@ -190,7 +190,7 @@ query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT,
 
  
 filename= config.get('GWmakeDataFiles-fake', 'fake_input')
-
+filename=os.path.join(outdir,filename)
 connection=easyaccess.connect(db)
 connection.query_and_save(query,filename)
 connection.close()
