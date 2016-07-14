@@ -204,7 +204,7 @@ query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT,
 
  
 filename= config.get('GWmakeDataFiles-fake', 'fake_input')
-filename=os.path.join(outdir,filename)
+#filename=os.path.join(outdir,filename)
 connection=easyaccess.connect(db)
 connection.query_and_save(query,filename)
 connection.close()
@@ -223,6 +223,7 @@ print "Read Data"
 reals = diffimg.DataSet(outDir_datareal, label = 'reals')
 fakes = diffimg.DataSet(outDir_datafake, label = 'fakes')
 ###Need to generate fakes input on own###
+os.system('mv fakes_truth.tab '+outdir)
 fakes.get_fakes_input(os.path.join(outdir,config.get('GWmakeDataFiles-fake', 'fake_input')))
 truth = fakes.fakes_input
 
