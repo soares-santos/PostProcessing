@@ -86,10 +86,15 @@ format= config.get('GWmakeDataFiles', 'format')
 numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
 trigger = config.get('GWmakeDataFiles', '2nite_trigger')
 outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
+outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
 outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
+outDir_datareal = os.path.join(outdir,outDir_datareal)
 outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
+outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
 outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
+outDir_datafake = os.path.join(outdir,outDir_datafake)
 fakeversion = config.get('GWmakeDataFiles-fake', 'version')
+fakeversion = os.path.join(outdir,fakeversion)
 
 
 print "Check RUNMON outputs"
