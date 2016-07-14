@@ -22,8 +22,9 @@ def savedata(reals,urID,outdir,trigger_id):
     band = reals.data.BAND[Cand]
     x = reals.data.XPIX[Cand]
     y = reals.data.YPIX[Cand]
-    nite = reals.data.NITE[Cand]
+#    nite = reals.data.NITE[Cand]
     mjd = reals.data.MJD[Cand]
+    nite = mjd
     expnum= reals.data.EXPNUM[Cand]
     ccdnum= reals.data.CCDNUM[Cand] 
     photprob= reals.data.PHOTPROB[Cand]
