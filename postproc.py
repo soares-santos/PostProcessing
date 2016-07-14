@@ -86,7 +86,7 @@ outstamps = outdir + '/' + 'stamps'
 print "Read environment variables"
 season= str(args.season)
 run = "dp"+str(season)
-triggerid = str(ars.triggerid)
+triggerid = str(args.triggerid)
 forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
 print forcedir
 
