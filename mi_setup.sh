@@ -1,7 +1,7 @@
 
 ##### edit these lines before running the code:
 export ROOTDIR=/pnfs/des/scratch/gw/
-export ROOTDIR2=/data/des41.a/data/tosborn
+export ROOTDIR2=/data/des41.a/data/desgw
 export SEASON=46
 #####
 
