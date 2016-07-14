@@ -175,7 +175,7 @@ print b
 if ups:
     gwpostdir = os.environ['GWPOST_DIR']
     os.chdir(outdir)
-
+    os.system("cp FAKES_OVERLAID_" + fakeversion+ ".DAT " + outdir)
 subprocess.call(b, shell=True)
 
 print "Run GWmakeDataFiles - fake"
