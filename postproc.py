@@ -215,7 +215,7 @@ reals = diffimg.DataSet(outDir_datareal, label = 'reals')
 fakes = diffimg.DataSet(outDir_datafake, label = 'fakes')
 ###Need to generate fakes input on own###
 fakes.get_fakes_input(config.get('GWmakeDataFiles-fake', 'fake_input'))
-truth = fakes.fakes_input
+truth = os.path.join(outdir,fakes.fakes_input)
 
 
 
