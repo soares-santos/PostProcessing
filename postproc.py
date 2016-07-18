@@ -261,13 +261,15 @@ truth = fakes.fakes_input
 
 rdatag = reals.set_mask(PHOTFLAG_bit=4096)
 fdatag = fakes.set_mask(PHOTFLAG_bit=4096)
-
+colors = ['r','g','b','c','m','k','y']
 rID= reals.data.SNID
 urID= np.unique(rID)
 numofcan = len(urID)
 realss = reals.data
 bands = realss.BAND
 ubands = np.unique(bands)
+
+
 
 bins = bins = np.arange(17,25,0.5)
 
@@ -443,15 +445,15 @@ for i in range(0,numofcan):
         Flux = realss.FLUXCAL[Cand][Band]
         MJD = realss.MJD[Cand][Band]
         Fluxerr = realss.FLUXCALERR[Cand][Band]
-        plt.scatter(MJD,Flux, color = 'red')
-        plt.errorbar(MJD,Flux, yerr=Fluxerr, ls = 'none')
+        plt.scatter(MJD,Flux, color = colors[b])
+        plt.errorbar(MJD,Flux, yerr=Fluxerr,color=colors[b], ls = 'none')
         plt.xlabel('MJD')
         plt.ylabel('Flux')
-        plt.title('Flux vs. MJD for candidate'  + str(int(urID[i])) + ' in '+ str(ubands[b])+ 'Band' )
-        plt.savefig(outdir +'/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '_in_' + str(ubands[b]) + '_Band.png')
-        plt.clf()
-        plotpic = image('', 'plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '_in_' + str(ubands[b]) + '_Band.png')
-        fvmplottable[0][b] = plotpic
+    plt.title('Flux vs. MJD for candidate'  + str(int(urID[i]))+ ' iband=r, zband=g')
+    plt.savefig(outdir +'/plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i]))+'.png')
+    plt.clf()
+    plotpic = image('', 'plots/lightcurves/FluxvsMJD_for_cand_' + str(int(urID[i])) + '.png')
+    fvmplottable[0][b] = plotpic
     htmlcode3 = HTML.table(fvmplottable)
     f.write(htmlcode3)
 
