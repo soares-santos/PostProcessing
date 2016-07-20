@@ -21,7 +21,7 @@ export EUPS_PATH=/cvmfs/des.opensciencegrid.org/eeups/fnaleups:$EUPS_PATH
 #other setups
 setup perl 5.18.1+6 # || exit 134
 setup Y2Nstack 1.0.6+18
-setup diffimg gwdevel11 
+setup diffimg gwdevel12 
 setup ftools v6.17 
 export HEADAS=$FTOOLS_DIR
 setup autoscan
