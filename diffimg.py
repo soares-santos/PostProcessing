@@ -111,6 +111,7 @@ def read_data_files(path='.',filenamepattern='*.dat'):
 	MASKFRAC = np.zeros(0,dtype=float)
 
         for filename in glob.glob(path+'/'+filenamepattern):
+            print filename
             thisFAKE = -9
             thisRA = -999.0
             thisDEC = -999.0
@@ -176,7 +177,8 @@ def read_data_files(path='.',filenamepattern='*.dat'):
             FAKEZ = np.append(FAKEZ,np.full(NOBS,thisFAKEZ))
             FAKEPEAKMJD = np.append(FAKEPEAKMJD,np.full(NOBS,thisFAKEPEAKMJD))
             FAKEHOSTSEP = np.append(FAKEHOSTSEP,np.full(NOBS,thisFAKEHOSTSEP))
-            while is_data_section:
+	    print line 
+	    while is_data_section:
                 MJD = np.append(MJD,float(line[1]))
                 BAND = np.append(BAND,line[2])
                 FIELD = np.append(FIELD,line[3])
@@ -194,8 +196,8 @@ def read_data_files(path='.',filenamepattern='*.dat'):
 		OBSNITE = np.append(OBSNITE,float(line[15]))
 		EXPNUM = np.append(EXPNUM,float(line[16]))
 		OBSCCDNUM = np.append(OBSCCDNUM,float(line[17]))
-		OBJID = np.append(OBJID,float(line[18]))
-                if thisFAKE == 1 : 
+		OBJID = np.append(OBJID,int(line[18]))
+		if thisFAKE == 1 : 
 			SIMMAG = np.append(SIMMAG,float(line[19]))
 			MASKFRAC = np.append(MASKFRAC,float(line[20]))
 		else:
@@ -203,7 +205,7 @@ def read_data_files(path='.',filenamepattern='*.dat'):
 			MASKFRAC = np.append(MASKFRAC, 0.0)
 #                NITE = np.append(NITE,int(line[-1]))
                 line = f.readline().split()
-                if len(line) == 0: 
+		if len(line) == 0: 
                     is_data_section = False
                 elif line[0] != 'OBS:': 
                     is_data_section = False
@@ -216,7 +218,8 @@ def read_data_files(path='.',filenamepattern='*.dat'):
             FAKEGALID,FAKERA,FAKEDEC,FAKEANGSEP,FAKEZ,\
             FAKEPEAKMJD,FAKEHOSTSEP,MJD,BAND,FIELD,FLUXCAL,\
             FLUXCALERR,PHOTFLAG,PHOTPROB,ZPFLUX,PSF,SKYSIG,\
-            SKYSIGT,GAIN,XPIX,YPIX,OBSNITE,EXPNUM,OBSCCDNUM,OBJID,SIMMAG,MASKFRAC,MAG,MAGERR
+            SKYSIGT,GAIN,XPIX,YPIX,OBSNITE,EXPNUM,OBSCCDNUM,\
+	    OBJID,SIMMAG,MASKFRAC,MAG,MAGERR
 
 class DataSet:
 
