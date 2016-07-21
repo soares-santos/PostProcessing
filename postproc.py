@@ -20,7 +20,7 @@ def image(text, url):
 def savedata(reals,urID,outdir,trigger_id):
     Cand =(reals.data.SNID == urID)
     trigger_id = triggerid
-    Cand_id = urID[i]
+    Cand_id = urID
     band = reals.data.BAND[Cand]
     x = reals.data.XPIX[Cand]
     y = reals.data.YPIX[Cand]
@@ -188,7 +188,7 @@ subprocess.call(a, shell=True)
 
 print "Run GWmakeDataFiles - real"
 
-#run "Gwmakedatafiles" section#
+run "Gwmakedatafiles" section#
 
 #makeDataFiles_fromSNforce \
 #   -format snana \
@@ -234,7 +234,7 @@ query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT,
 
  
 filename= config.get('GWmakeDataFiles-fake', 'fake_input')
-#filename=os.path.join(outdir,filename)
+filename=os.path.join(outdir,filename)
 connection=easyaccess.connect(db)
 connection.query_and_save(query,filename)
 connection.close()
@@ -404,11 +404,12 @@ for i in range(0,numofcan):
         thisobs_nite = str(int(realss.OBSNITE[Cand][j]))
         thisobs_band = realss.BAND[Cand][j]
         ccdnum = int(realss.OBSCCDNUM[Cand][j])
+        objexpnum = int(realss.EXPNUM[Cand][j])
         if int(realss.OBSCCDNUM[Cand][j]) <10:
             ccdnum = '0' + str(int(realss.OBSCCDNUM[Cand][j]))
 #        expdir = "/data/des41.a/data/marcelle/diffimg/local-runs"
         thisobs_ID = realss.OBJID[Cand][j]
-        a = expdir + '/' + thisobs_nite + '/*/dp' + str(season) + '/' + thisobs_band + '_' + str(ccdnum) + '/stamps*'
+        a = expdir + '/' + thisobs_nite + '/'+ str(objexpnum)+'/dp' + str(season) + '/' + thisobs_band + '_' + str(ccdnum) + '/stamps*'
         print a
         thisobs_stampsdir = glob.glob(a)[0]
         print thisobs_stampsdir
@@ -416,14 +417,20 @@ for i in range(0,numofcan):
         filenamediff = thisobs_stampsdir + '/diff' + str(thisobs_ID) + '.gif'
         filenamesrch = thisobs_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
         filenametemp = thisobs_stampsdir + '/temp' + str(thisobs_ID) + '.gif' 
-        shutil.copy(filenamediff, thiscand_stampsdir)
-        shutil.copy(filenamesrch, thiscand_stampsdir)
-        shutil.copy(filenametemp, thiscand_stampsdir)
-        path1 = thiscand_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
-        print path1
-        search= image('', 'stamps/' + str(int(urID[i]))  + '/srch' + str(thisobs_ID) + '.gif')
-        temp  = image('', 'stamps/' + str(int(urID[i])) + '/temp' + str(thisobs_ID) + '.gif')
-        diff  = image('', 'stamps/' + str(int(urID[i])) + '/diff' + str(thisobs_ID) + '.gif')
+        if thisobs_ID != 0:
+            shutil.copy(filenamediff, thiscand_stampsdir)
+            shutil.copy(filenamesrch, thiscand_stampsdir)
+            shutil.copy(filenametemp, thiscand_stampsdir)
+            path1 = thiscand_stampsdir + '/srch' + str(thisobs_ID) + '.gif'
+            print path1
+            search= image('', 'stamps/' + str(int(urID[i]))  + '/srch' + str(thisobs_ID) + '.gif')
+            temp  = image('', 'stamps/' + str(int(urID[i])) + '/temp' + str(thisobs_ID) + '.gif')
+            diff  = image('', 'stamps/' + str(int(urID[i])) + '/diff' + str(thisobs_ID) + '.gif')
+            
+        if thisobs_ID == 0:
+            search = 'no search'
+            temp = 'no temp'
+            diff = 'no diff'
 #Replace in the empty spaces in table with values/pictures#
         stampstable[j][0] = realss.BAND[Cand][j]
         stampstable[j][1] = realss.OBJID[Cand][j]
