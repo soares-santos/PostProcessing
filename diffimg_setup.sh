@@ -31,7 +31,7 @@ setup extralibs 1.0
 echo "EUPS setup complete"
 
 export DES_SERVICES=${HOME}/.desservices.ini 
-export DES_DB_SECTION=db-sn-test
+export DES_DB_SECTION=db-ws-test
 export DIFFIMG_HOST=FNAL
 export SCAMP_CATALOG_DIR=$PWD/SNscampCatalog
 export AUTOSCAN_PYTHON=$PYTHON_DIR/bin/python
