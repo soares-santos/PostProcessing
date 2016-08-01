@@ -1,10 +1,13 @@
 
 ##### edit these lines before running the code:
-export ROOTDIR=/pnfs/des/scratch/gw/
+##export ROOTDIR=/pnfs/des/scratch/gw/
+export ROOTDIR=/pnfs/des/persistent/wsdiff
+#/forcephoto/images
 export ROOTDIR2=/data/des41.a/data/tosborn
 export SEASON=501
 #####
 
+#### /pnfs/des/persistent/wsdiff/exp/20150917
 
 #for IFDH
 export EXPERIMENT=des
