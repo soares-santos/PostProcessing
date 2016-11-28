@@ -91,8 +91,8 @@ print "Read environment variables"
 season= str(args.season)
 run = "dp"+str(season)
 triggerid = str(args.triggerid)
-forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
-print forcedir
+#forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
+#print forcedir
 
 #print season
 
@@ -111,6 +111,8 @@ expdir = config.get('data', 'exp')
 ncore = config.get('GWFORCE', 'ncore')
 numepochs_min = config.get('GWFORCE', 'numepochs_min')
 writeDB = config.get('GWFORCE', 'writeDB')
+forcedir = config.get('GWFORCE','forcedir')
+forcedir = forcedir + '/images/'+str(run)+'/*'
 
 format= config.get('GWmakeDataFiles', 'format')
 numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
@@ -142,17 +144,13 @@ for expnum in args.expnums:
     print runmonlog
     nfiles= len(glob.glob(runmonlog))
     if nfiles != 1:
-        print "runmonlog for exposure" + e + " not found"
-        continue
-###Think about what to do in the case that the file is not found###
+        print "WARNING: runmonlog for exposure " + e + " not found"
     psf= forcedir+"/*"+e+"*.psf"
-#    diff = forcedir+"/*"+e+"*_diff.fits"
     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
     good = True
     for filetype in (psf, diffmh):
         if len(glob.glob(filetype)) == 0 :
             print "files " + str(filetype) + " not found"
- #           good = False
     isstartedfile = os.path.join(outdir,"isstarted",str(expnum) + '.txt')
     if os.path.exists(isstartedfile):
         good = False
