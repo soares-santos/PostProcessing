@@ -21,8 +21,12 @@ If you're unsure of the format these files usually take, you can take a look at 
 FAKES: /data/des41.b/data/rbutler/10_19_2016/fake_list_dp107_sorted_uniq.tab
 CANDIDATES: /data/des41.a/data/marcelle/G184098/analyze/107/output/candidates_table_real.txt
 
+4) ccds: This will generally be 'all', but in special cases can be changed. In these cases, you can specify an array of candidates that is formatted in the same way as the expnums array in the first line of the file.
+
 ----- 
 RUNNING THE CODE
+
+0) If the normal conda environment from DES is already in use, the joblib package is available, and you've already cloned the 'sb3.py' code itself, you ***don't need the next step (1)***
 
 1) The code can run using just the normal conda environment setup for DES, along with an extra package called joblib (for parallelizing). You can set all that up in your current directory by running
 
