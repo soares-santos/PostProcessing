@@ -130,7 +130,7 @@ db_flag  = 0         #Set to non-zero for each failure at DB update
 
 #DIR = os.environ.get('TOPDIR_HOSTMATCH') 
 DIR = "/home/s1/palmese/GW_reject_cat/"
-DIR = "/data/des60.b/data/palmese/GW_reject_cat/v1.0.0/"
+DIR = "/data/des60.b/data/palmese/GW_reject_cat/"
 
 if not DIR:
     print 'Environment variable for HOSTMATCH directory no set'
