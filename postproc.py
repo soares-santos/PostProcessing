@@ -182,7 +182,17 @@ subprocess.call(a, shell=True)
 
 
 ####run "gwhostmatch" section (if time allows)#
+if ups:
+    gwpostdir = os.environ['GWPOST_DIR']
+    deshostmatch = os.path.join(gwpostdir,'desHostMatch.py')
+else:
+    deshostmatch = 'desHostMatch.py'
 
+print '-'*50
+print 'Running desHostMatch.py'
+print os.popen('python '+deshostmatch+' ').read()
+print 'Finished desHostMatch.py'
+print '-'*50
 
 print "Run GWmakeDataFiles - real"
 
