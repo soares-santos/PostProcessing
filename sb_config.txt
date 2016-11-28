@@ -4,3 +4,4 @@ outdir: /data/des41.b/data/rbutler/
 cand_list: /data/des41.a/data/marcelle/G184098/analyze/107/output/candidates_table_real.txt
 fake_list: /data/des41.b/data/rbutler/10_19_2016/fake_list_dp107_sorted_uniq.tab
 season: 107
+ccds: all
