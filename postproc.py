@@ -190,7 +190,7 @@ else:
 
 print '-'*50
 print 'Running desHostMatch.py'
-print os.popen('python '+deshostmatch+' ').read()
+print os.popen('python '+deshostmatch+' --season='+season).read()
 print 'Finished desHostMatch.py'
 print '-'*50
 
