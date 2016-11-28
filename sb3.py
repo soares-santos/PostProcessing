@@ -662,7 +662,7 @@ for exp in expnums:
         numberpix = str("%02d" % (index2))
         part1c = rootdir + '2*/'
         part2c = '/dp' + str(107) + '/*'
-        part3c = '/WSp1*_combined_*'
+        part3c = '/*_combined_*'
         part4c = '+fakeSN_diff.fits'
         diffimage = part1c + str(exp) + part2c + numberpix + part3c + numberpix + part4c
         diffglob = glob(diffimage)  
