@@ -196,7 +196,7 @@ print '-'*50
 
 print "Run GWmakeDataFiles - real"
 
-run "Gwmakedatafiles" section#
+#run "Gwmakedatafiles" section#
 
 #makeDataFiles_fromSNforce \
 #   -format snana \
@@ -215,6 +215,8 @@ if ups:
     os.chdir(outdir)
     os.system("cp "+gwpostdir+"/FAKES_OVERLAID_" + fakeversion + ".DAT " + outdir)
 subprocess.call(b, shell=True)
+
+#Run bobby's code here
 
 print "Run GWmakeDataFiles - fake"
 
