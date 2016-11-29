@@ -1,4 +1,4 @@
-README for SB code.
+README for SB code
 
 This code computes the surface brightness of the background behind gravitational wave source candidates, and performs some other miscellaneous tasks. It outputs one .fits table per exposure it processes. The column names of this file are listed below in the OUTPUT section.
 
