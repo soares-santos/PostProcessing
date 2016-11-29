@@ -31,11 +31,16 @@ outdir = line3[1]        #
 cand_list = line4[1]     # if none to be used, make filename 'none'
 fake_list = line5[1]     # if none to be used, make filename 'none'
 season = int(line6[1])
-ccds = eval(line7[1])    # if all, make this 'all'
+ccds = line7[1]    # if all, make this 'all'
 ###
 
 if ccds=='all':
     ccds = range(1,63)
+    ccds = np.asarray(ccds)
+else:
+    ccds = eval(ccds)
+    
+print ccds
 
 if cand_list!='none':
     SNID,candRA,candDEC = np.genfromtxt(cand_list, delimiter=',',skip_header=1,\
