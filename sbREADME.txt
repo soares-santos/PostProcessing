@@ -13,7 +13,7 @@ config.txt
 
 1) The file should be formatted in the same way as the file /data/des41.b/data/rbutler/sb/example_config.txt is. The only space in each line should be between the colon and the start of the entry to the right (the space is the delimiter that the code uses to parse each line).
 
-2) 'outdir' should ideally be an empty directory, or at least one where you don’t have anything valuable (The code deletes some files as it goes; it should only delete ones that it has created itself, but if you happen to have files that match or resemble the names in the same directory, they could get confused. Small chance, but fair warning.) 
+2) 'outdir' should ideally be an empty directory, or at least one where you donâ€™t have anything valuable (The code deletes some files as it goes; it should only delete ones that it has created itself, but if you happen to have files that match or resemble the names in the same directory, they could get confused. Small chance, but fair warning.) 
 
 3) MASTER FAKE/CANDIDATE LISTS: If you don't have a master fake list and/or a master list of 'good' candidates, you can just put 'none' where you would normally put 'path/filename'; the code can work around that. Specifying a master FAKE list will allow true_mag and true_flux for fakes to be included in the output file. Specifying a master CANDIDATE list will allow candidates which are detected in both the i and z band AND that have a machine learning score above a certain threshold (it was 0.5 for the one I used). 
 
@@ -21,7 +21,7 @@ If you're unsure of the format these files usually take, you can take a look at 
 FAKES: /data/des41.b/data/rbutler/10_19_2016/fake_list_dp107_sorted_uniq.tab
 CANDIDATES: /data/des41.a/data/marcelle/G184098/analyze/107/output/candidates_table_real.txt
 
-4) ccds: This will generally be 'all', but in special cases can be changed. In these cases, you can specify an array of candidates that is formatted in the same way as the expnums array in the first line of the file.
+4) ccds: This is currently used only to direct the ds9regions.py code. This will generally be 'all', but in special cases can be changed. In these cases, you can specify an array of candidates that is formatted in the same way as the expnums array in the first line of the file.
 
 ----- 
 RUNNING THE CODE
