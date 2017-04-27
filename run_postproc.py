@@ -1,235 +1,200 @@
 import os
-import subprocess
+import argparse
+import ConfigParser
+import sys
+import postproc
 
-def prep_environ(rootdir,outdir,season,setupfile):
-    os.environ['ROOTDIR']=rootdir
-    os.environ['ROOTDIR2']=outdir
-    os.environ['SEASON']=season    
-    subprocess.call('source '+setupfile, shell=True)
+## Read config file
+config = ConfigParser.ConfigParser()
+if os.path.isfile('./postproc.ini'):
+    inifile = config.read('./postproc.ini')[0]
 
-def forcephoto(season,ncore=4,numepochs_min=0,writeDB=False):    
-    a = 'forcePhoto_master.pl ' 
-    a = a + ' -season ' + season 
-    a = a + ' -numepochs_min ' + numepochs_min 
-    a = a + ' -ncore ' + ncore 
-    a = a + ' -NOPROMPT ' 
-    if writeDB == True:
-        a = a + ' -writeDB ' 
-    print a
-##subprocess.call(a, shell=True)
+## Read command line options
+parser = argparse.ArgumentParser(description=__doc__, 
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures')
+parser.add_argument('--outputdir', metavar='d', type=str, help='Location of output files')
+parser.add_argument('--season', help='Season number', type=int)
+parser.add_argument('--triggerid', help='LIGO trigger ID', type=str)
+parser.add_argument('--mjdtrigger', type=float, help='MJD of LIGO trigger')
+parser.add_argument('--ups', type=bool, help='ups mode: True/False')
+args = parser.parse_args()
 
-def makedatafiles(season,format,numepochs_min,two_nite_trigger,outfile,outdir,fakeversion=None):
-    a = 'makeDataFiles_fromSNforce' 
-    a = a + ' -format ' + format 
-    a = a + ' -season ' + season  
-    a = a + ' -numepochs_min ' + numepochs_min  
-    a = a + ' -outFile_stdout ' + outfile 
-    a = a + ' -outDir_data ' + outdir
-    if not two_nite_trigger == 'null':
-        a = a + ' -2nite_trigger ' + trigger 
-    if not fakeversion == None: 
-        a = a + ' -fakeVersion ' + fakeversion
-    print a
-##subprocess.call(a, shell=True)
+## Set ups mode: True/False
+if args.ups == None:
+    ups = config.getboolean('general','ups')
+else:
+    ups = args.ups
 
+## If running in ups environment, replace the .ini file
+if ups:
+    cpath = os.environ["GWPOST_DIR"]
+    inifile = config.read(os.path.join(cpath,"postproc.ini"))[0]
 
+## Set outdir
+if args.outputdir == None:
+    outdir = config.get('data','out')
+else:
+    outdir = args.outdir
 
+## Set season
+if args.season == None:
+    season = config.get('general','season')
+else:
+    season = str(args.season)
 
+## Set triggerid
+if args.triggerid == None:
+    triggerid = config.get('general','triggerid')
+else:
+    triggerid = args.triggerid
 
+## Set triggermjd
+if args.mjdtrigger == None:
+    triggermjd = config.get('general','triggermjd')
+else:
+    triggermjd = args.mjdtrigger
 
-# import os
-# import shutil
-# import numpy as np
-# import matplotlib.pyplot as plt 
-# import pyfits as py
-# import argparse
-# import ConfigParser
-# import glob, sys, datetime, getopt
-# import subprocess
-# import diffimg
-# import easyaccess
-# import numpy as np
-# import HTML
+## Get the list of exposures
+if args.expnums == None:
+    expnums = []
+    indir = config.get('data','indir')
+    expnums_listfile = config.get('data','exposures_listfile')
+    expnums_listfile = os.path.join(indir,expnums_listfile)
+    try:
+        explist = open(expnums_listfile,'r')
+        expnums1 = explist.readlines()
+        for line in expnums1:
+            expnums.append(line.split('\n')[0])
+            expnums = map(int,expnums)
+    except:
+        print "ERROR: List of exposures file not found or empty."
+        sys.exit(1)
+else:
+    expnums = args.expnums
 
-# ###FOR TESTING PURPOSES###
-# ### 475914 475915 475916 482859 482860 482861 ###
-# ###SEASON= 46###
-# #Read User input#
-# def image(text, url):
-#     return "<center>%s</center><img src='%s'>" % (text, url)
-# def savedata(reals,urID,outdir,trigger_id):
-#     Cand =(reals.data.SNID == urID)
-#     trigger_id = triggerid
-#     Cand_id = urID
-#     band = reals.data.BAND[Cand]
-#     x = reals.data.XPIX[Cand]
-#     y = reals.data.YPIX[Cand]
-# #    nite = reals.data.NITE[Cand]
-#     mjd = reals.data.MJD[Cand]
-#     nite = mjd
-#     expnum= reals.data.EXPNUM[Cand]
-#     ccdnum= reals.data.CCDNUM[Cand] 
-#     photprob= reals.data.PHOTPROB[Cand]
-#     mag = reals.data.MAG[Cand]
-#     thisobs_ID=reals.data.OBJID[Cand]
-#     thisobs_ID=reals.data.MJD[Cand]
-#     search,temp,diff=[],[],[]
-#     for o in thisobs_ID:
-#         search.append('stamps/' + str(int(urID))  + '/srch' + str(o) + '.gif')
-#         temp.append('stamps/' + str(int(urID))  + '/temp' + str(o) + '.gif')
-#         diff.append('stamps/' + str(int(urID))  + '/diff' + str(o) + '.gif')
-#     ra = reals.data.RA[Cand][0]
-#     dec= reals.data.DEC[Cand][0]
-#     field = reals.data.FIELD[Cand][0]
-#     lcplot = 'plots/lightcurves/FluxvsMJD_for_cand_'+ str(urID)+ '_in_i_Band.png'
-#     print search
-#     np.savez(os.path.join(outdir,str(urID)+'.npz'),
-#              band=band,x=x,y=y,mjd=mjd,expnum=expnum,ccdnum=ccdnum,
-#              photprob=photprob,mag=mag,thisobs_ID=thisobs_ID,search=search,
-#              temp=temp,diff=diff,ra=ra,dec=dec,field=field,lcplot=lcplot)
+## Get remaining configuration from the .ini file 
 
-# print "Read user input"
-# ###CREATE NPZ FILE###
-# ### WE NEED EXPLIST TO ENSURE ALL EXPOSURE NUMBERS ARE ACCOUNTED FOR ###
-# parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+rootdir = config.get('general','rootdir')
+expdir = os.path.join(rootdir,'exp')
+forcedir = os.path.join(rootdir,'forcephoto')+'/images/dp'+season+'/*'
 
-# parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures', default= [])
+setupfile = config.get('general','env_setup_file')
 
-# #parser.add_argument('--outputdir', metavar='d', type=str, help='Directory location of output files', default= "testevent")
+ncore = config.get('GWFORCE', 'ncore')
 
-# parser.add_argument('--season', help='season is required', default=300, type=int)
+numepochs_min_1 = config.getint('GWFORCE', 'numepochs_min')
+numepochs_min_2 = config.getint('GWmakeDataFiles', 'numepochs_min')
+numepochs_min = str(min(numepochs_min_1,numepochs_min_2))
 
-# parser.add_argument('--triggerid', help= 'Ligo trigger is required', default='GW170104', type=str)
+writeDB = config.getboolean('GWFORCE', 'writeDB')
 
-# parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 57757)
-# parser.add_argument('--debug', type= bool, help='Turn on Webpage generation', default= False)
-# parser.add_argument('--ups', type= bool, default=False)
+format = config.get('GWmakeDataFiles', 'format')
 
-# args = parser.parse_args()
-# expnums = args.expnums
-# print args.expnums
-# #print args.outputdir
-# ups= args.ups
+two_nite_trigger = config.get('GWmakeDataFiles', '2nite_trigger')
 
-# print "Read config file"
-# config = ConfigParser.ConfigParser()
-# if ups:
-#     cpath=os.environ["GWPOST_DIR"]
-#     infile = config.read(os.path.join(cpath,"postproc.ini"))[0]
-# else:
-#     inifile = config.read('./postproc.ini')[0]
+outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
+outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
 
-# outdir = config.get('data','out')
-# #outdir = str(args.outputdir)
+outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
+outDir_datareal = os.path.join(outdir,outDir_datareal)
 
-# if not os.path.exists(outdir):
-#     os.mkdir(outdir) 
+outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
+outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
 
-# if not os.path.exists(outdir + '/' + 'stamps'):
-#     os.mkdir(outdir + '/' + 'stamps')
+outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
+outDir_datafake = os.path.join(outdir,outDir_datafake)
 
-# if not os.path.exists(outdir + '/' + 'plots'):
-#     os.mkdir(outdir + '/' + 'plots')
+fakeversion = config.get('GWmakeDataFiles-fake', 'version')
 
-# if not os.path.exists(outdir + '/plots/' + 'lightcurves'):
-#     os.mkdir(outdir + '/plots/' + 'lightcurves')
+## Make directory structure
 
-# outplots = outdir + '/' + 'plots'
-# outstamps = outdir + '/' + 'stamps'
+if not os.path.isdir(outdir):
+    os.mkdir(outdir) 
 
-# print "Read environment variables"
-# season= str(args.season)
-# run = "dp"+str(season)
-# triggerid = str(args.triggerid)
-# #forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
-# #print forcedir
+if not os.path.isdir(outdir + '/' + 'stamps'):
+    os.mkdir(outdir + '/' + 'stamps')
 
-# #print season
+if not os.path.isdir(outdir + '/' + 'plots'):
+    os.mkdir(outdir + '/' + 'plots')
 
+if not os.path.isdir(outdir + '/plots/' + 'lightcurves'):
+    os.mkdir(outdir + '/plots/' + 'lightcurves')
 
+outplots = outdir + '/' + 'plots'
+outstamps = outdir + '/' + 'stamps'
 
+#########
+# STEP 0: Setup the environment
+#########
 
+print "Run STEP 0: Setup the environment"
+postproc.prep_environ(rootdir,outdir,season,setupfile)
 
+#########
+# STEP 1: Check processing outputs
+#########
 
+if len(expnums)>0:
+    print "Run STEP 1: Check processing outputs"
+    print "This is not yet implemented. Coming soon..."
+   ### postproc.checkoutputs(expnums,season,outdir)
+else:
+    print "WARNING: List of exposures is empty. Skipping STEP 1."
 
-# # if expnums not provided, read from file
-# if len(expnums)==0:
-#     expnums_listfile = config.get('data','exposures_listfile')
-#     expnums_listfile = os.path.join(outdir,expnums_listfile)
-#     explist = open(expnums_listfile,'r')
-#     expnums1 = explist.readlines()
-#     expnums = []
-#     for line in expnums1:
-#         expnums.append(line.split('\n')[0])
-#         expnums = map(int,expnums)
-#     if len(expnums)==0:
-#         sys.exit(1)
-#     print expnums
+#########
+# STEP 2: Forcephoto
+#########
 
-# expdir = config.get('data', 'exp')
-# ncore = config.get('GWFORCE', 'ncore')
-# numepochs_min = config.get('GWFORCE', 'numepochs_min')
-# writeDB = config.get('GWFORCE', 'writeDB')
-# forcedir = config.get('GWFORCE','forcedir')
-# forcedir = forcedir + '/images/'+str(run)+'/*'
+print "Run STEP 2: Forcephoto"
+postproc.forcephoto(season,ncore,numepochs_min,writeDB)
 
-# format= config.get('GWmakeDataFiles', 'format')
-# #numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
-# trigger = config.get('GWmakeDataFiles', '2nite_trigger')
-# outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
-# outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
-# outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
-# outDir_datareal = os.path.join(outdir,outDir_datareal)
-# outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
-# outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
-# outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
-# outDir_datafake = os.path.join(outdir,outDir_datafake)
-# fakeversion = config.get('GWmakeDataFiles-fake', 'version')
-# #fakeversion = os.path.join(outdir,fakeversion)
+#########
+# STEP 3: Hostmatch
+#########
 
+print "Run STEP 3: Hostmatch"
+print "This is not yet implemented. Coming soon..."
 
-# print "Check RUNMON outputs"
+#########
+# STEP 4: Make truth table
+#########
 
-# #expnumlist = args.expnums
-# ### Query this from database ###
+if len(expnums)>0:
+    print "Run STEP 4: Make truth table"
+    print "This is not yet implemented. Coming soon..."
+else:
+    print "WARNING: List of exposures is empty. Skipping STEP 4."
 
-# #Read in and locate files#
-# goodexpnums = []
-# for expnum in expnums: 
-#     e=str(expnum)
-#     print "Check dir content for exposure " +e
-#     d= expdir+"/*/"+e+"/"+run
-#     runmonlog=d+"/RUNEND*.LOG"
-#     print runmonlog
-#     nfiles= len(glob.glob(runmonlog))
-#     if nfiles != 1:
-#         print "WARNING: runmonlog for exposure " + e + " not found"
-#     else:
-#         print "Exposure " + e + "ok"
-#     psf= forcedir+"/*"+e+"*.psf"
-#     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
-#     good = True
-#     for filetype in (psf, diffmh):
-#         if len(glob.glob(filetype)) == 0 :
-#             print "files " + str(filetype) + " not found"
-#     isstartedfile = os.path.join(outdir,"isstarted",str(expnum) + '.txt')
-#     if os.path.exists(isstartedfile):
-#         good = False
-#         print "Skipping expnum because already started",expnum
-#     if good:
-#         goodexpnums.append(expnum)
-#         if not os.path.exists(os.path.join(outdir,"isstarted")):
-#             os.mkdir(os.path.join(outdir,"isstarted"))
-#         os.system("touch "+ isstartedfile)
-# print "Run GWFORCE"
-# oexpnums = expnums
-# expnums= goodexpnums
-# if len(expnums)==0:
-#     print "No good exposures."
-#     #sys.exit()
+#########
+# STEP 5: Make datafiles
+#########
+
+print "Run STEP 5: Make datafiles"
+postproc.makedatafiles(season,format,numepochs_min,two_nite_trigger,
+                       outFile_stdoutreal,outDir_datareal)
+postproc.makedatafiles(season,format,numepochs_min,two_nite_trigger,
+                       outFile_stdoutfake,outDir_datafake,fakeversion)
+
+#########
+# STEP 6: Make plots
+#########
+
+print "Run STEP 6: Make plots"
+print "This is not yet implemented. Coming soon..."
+
+#########
+# STEP 7: Make webpage
+#########
+
+print "Run STEP 7: Make webpage"
+print "This is not yet implemented. Coming soon..."
 
 
-# numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
+
+
+
+
 
 # ####run "gwhostmatch" section (if time allows)#
 # if ups:
@@ -248,6 +213,7 @@ def makedatafiles(season,format,numepochs_min,two_nite_trigger,outfile,outdir,fa
 # print '-'*50
 
 # #sys.exit()
+
 # print "Run GWmakeDataFiles - real"
 
 # #run "Gwmakedatafiles" section#
