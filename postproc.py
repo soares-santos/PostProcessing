@@ -55,7 +55,7 @@ parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.R
 
 parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures', default= [])
 
-parser.add_argument('--outputdir', metavar='d', type=str, help='Directory location of output files', default= "testevent")
+#parser.add_argument('--outputdir', metavar='d', type=str, help='Directory location of output files', default= "testevent")
 
 parser.add_argument('--season', help='season is required', default=300, type=int)
 
@@ -68,9 +68,19 @@ parser.add_argument('--ups', type= bool, default=False)
 args = parser.parse_args()
 expnums = args.expnums
 print args.expnums
-print args.outputdir
+#print args.outputdir
 ups= args.ups
-outdir = str(args.outputdir)
+
+print "Read config file"
+config = ConfigParser.ConfigParser()
+if ups:
+    cpath=os.environ["GWPOST_DIR"]
+    infile = config.read(os.path.join(cpath,"postproc.ini"))[0]
+else:
+    inifile = config.read('./postproc.ini')[0]
+
+outdir = config.get('data','out')
+#outdir = str(args.outputdir)
 
 if not os.path.exists(outdir):
     os.mkdir(outdir) 
@@ -96,19 +106,16 @@ triggerid = str(args.triggerid)
 
 #print season
 
-#Read Config File#
 
-print "Read config file"
 
-config = ConfigParser.ConfigParser()
-if ups:
-    cpath=os.environ["GWPOST_DIR"]
-    infile = config.read(os.path.join(cpath,"postproc.ini"))[0]
-else:
-    inifile = config.read('./postproc.ini')[0]
 
+
+
+
+# if expnums not provided, read from file
 if len(expnums)==0:
     expnums_listfile = config.get('data','exposures_listfile')
+    expnums_listfile = os.path.join(outdir,expnums_listfile)
     explist = open(expnums_listfile,'r')
     expnums1 = explist.readlines()
     expnums = []
@@ -130,13 +137,13 @@ format= config.get('GWmakeDataFiles', 'format')
 #numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
 trigger = config.get('GWmakeDataFiles', '2nite_trigger')
 outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
-#outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
+outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
 outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
-#outDir_datareal = os.path.join(outdir,outDir_datareal)
+outDir_datareal = os.path.join(outdir,outDir_datareal)
 outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
-#outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
+outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
 outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
-#outDir_datafake = os.path.join(outdir,outDir_datafake)
+outDir_datafake = os.path.join(outdir,outDir_datafake)
 fakeversion = config.get('GWmakeDataFiles-fake', 'version')
 #fakeversion = os.path.join(outdir,fakeversion)
 
@@ -278,7 +285,7 @@ print query
 # the file where you want to save the truth table                              
 
  
-filename= config.get('GWmakeDataFiles-fake', 'fake_input')
+filename= config.get('GWmakeDataFiles-fake', 'fake_truth')
 filename=os.path.join(outdir,filename)
 connection=easyaccess.connect(db)
 connection.query_and_save(query,filename)

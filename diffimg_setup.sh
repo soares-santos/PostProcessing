@@ -1,7 +1,7 @@
 
 ##### edit these lines before running the code:
 export ROOTDIR=/pnfs/des/persistent/gw
-export ROOTDIR2=/data/des41.b/data/rbutler/sb/bench
+export ROOTDIR2=/data/des41.a/data/marcelle/postproc/test
 export SEASON=300
 #####
 
@@ -62,5 +62,6 @@ export PFILES=${PWD}/syspfiles
 export SNANA_DIR=/data/des41.b/data/kessler/snana/snana
 export SNANA_ROOT=/data/des41.b/data/SNDATA_ROOT
 
-export DIFFIMG_DIR=/data/des40.b/data/kherner/Diffimg-devel/diffimg-trunk
-export PATH=$DIFFIMG_DIR/bin:$PATH
+## use Ken's development version of the diffimg code:
+#export DIFFIMG_DIR=/data/des40.b/data/kherner/Diffimg-devel/diffimg-trunk
+#export PATH=$DIFFIMG_DIR/bin:$PATH

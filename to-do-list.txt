@@ -1,0 +1,6 @@
+
+1) try running the current version
+2) fix the setup file 
+3) fix the path for in and out files
+4) work on each postproc step and fix/automate them
+

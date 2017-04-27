@@ -1,0 +1,30 @@
+
+#step -1:
+create an output dir
+create a list of exposures and copy it into the output dir
+example list of exposures:
+cat twoexps.txt
+606588
+606845
+
+#step 0: 
+modify diffimg_setup.sh 
+ROOTDIR is where the diffimg outputs are stored
+ROOTDIR2 is where force photo dir outputs go ??
+SEASON is the run tag
+
+#step 1:
+source diffimg_setup.sh
+
+#step 2:
+edit the postproc.ini file
+
+#step 3:
+python postproc.py
+
+
+
+
+
+
+
