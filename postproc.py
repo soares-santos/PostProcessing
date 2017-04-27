@@ -53,15 +53,15 @@ print "Read user input"
 ### WE NEED EXPLIST TO ENSURE ALL EXPOSURE NUMBERS ARE ACCOUNTED FOR ###
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
-parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures', default= [476960])
+parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures', default= [])
 
 parser.add_argument('--outputdir', metavar='d', type=str, help='Directory location of output files', default= "testevent")
 
-parser.add_argument('--season', help='season is required', default=107, type=int)
+parser.add_argument('--season', help='season is required', default=300, type=int)
 
-parser.add_argument('--triggerid', help= 'Ligo trigger is required', type=str)
+parser.add_argument('--triggerid', help= 'Ligo trigger is required', default='GW170104', type=str)
 
-parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 0)
+parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 57757)
 parser.add_argument('--debug', type= bool, help='Turn on Webpage generation', default= False)
 parser.add_argument('--ups', type= bool, default=False)
 
@@ -107,6 +107,18 @@ if ups:
 else:
     inifile = config.read('./postproc.ini')[0]
 
+if len(expnums)==0:
+    expnums_listfile = config.get('data','exposures_listfile')
+    explist = open(expnums_listfile,'r')
+    expnums1 = explist.readlines()
+    expnums = []
+    for line in expnums1:
+        expnums.append(line.split('\n')[0])
+        expnums = map(int,expnums)
+    if len(expnums)==0:
+        sys.exit(1)
+    print expnums
+
 expdir = config.get('data', 'exp')
 ncore = config.get('GWFORCE', 'ncore')
 numepochs_min = config.get('GWFORCE', 'numepochs_min')
@@ -115,7 +127,7 @@ forcedir = config.get('GWFORCE','forcedir')
 forcedir = forcedir + '/images/'+str(run)+'/*'
 
 format= config.get('GWmakeDataFiles', 'format')
-numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
+#numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
 trigger = config.get('GWmakeDataFiles', '2nite_trigger')
 outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
 #outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
@@ -136,7 +148,7 @@ print "Check RUNMON outputs"
 
 #Read in and locate files#
 goodexpnums = []
-for expnum in args.expnums: 
+for expnum in expnums: 
     e=str(expnum)
     print "Check dir content for exposure " +e
     d= expdir+"/*/"+e+"/"+run
@@ -145,6 +157,8 @@ for expnum in args.expnums:
     nfiles= len(glob.glob(runmonlog))
     if nfiles != 1:
         print "WARNING: runmonlog for exposure " + e + " not found"
+    else:
+        print "Exposure " + e + "ok"
     psf= forcedir+"/*"+e+"*.psf"
     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
     good = True
@@ -161,9 +175,11 @@ for expnum in args.expnums:
             os.mkdir(os.path.join(outdir,"isstarted"))
         os.system("touch "+ isstartedfile)
 print "Run GWFORCE"
+oexpnums = expnums
 expnums= goodexpnums
 if len(expnums)==0:
-    sys.exit()
+    print "No good exposures."
+    #sys.exit()
 #run "gwforce" section#
 #forcePhoto_master.pl     \
 #   -season         107   \
@@ -172,28 +188,37 @@ if len(expnums)==0:
 #   -writeDB 
 
 #Remove FORCELIST Command once we figure out the actual solutionxs
-a= 'forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore + ' -FORCELIST' 
+a= 'forcePhoto_master.pl ' + ' -season ' +str(season) + ' -numepochs_min ' +numepochs_min + ' -ncore ' +ncore #+ ' -NOPROMPT' #+ ' -FORCELIST' 
+print a
 
 if writeDB == "on":
     a = a+ ' -writeDB ' 
 
-print a
-subprocess.call(a, shell=True)
+#print 'A',a
+#subprocess.call(a, shell=True)
+###for testing
+print "forcephoto complete"
+#sys.exit()
 
+numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
 
 ####run "gwhostmatch" section (if time allows)#
 if ups:
     gwpostdir = os.environ['GWPOST_DIR']
-    deshostmatch = os.path.join(gwpostdir,'desHostMatch.py')
+    deshostmatch = os.path.join(gwpostdir,'desHostMatch_v2.py')
 else:
-    deshostmatch = 'desHostMatch.py'
+    deshostmatch = 'desHostMatch_v2.py'
 
 print '-'*50
-print 'Running desHostMatch.py'
-print os.popen('python '+deshostmatch+' --season='+season).read()
-print 'Finished desHostMatch.py'
+print 'Running',deshostmatch
+##not this
+#print os.popen('python '+deshostmatch+' --season='+season).read()
+###this
+#print os.popen('python '+deshostmatch+' '+season+' --username marcelle --password mar70chips --dbname destest --verbose --testdb').read()
+print 'Finished',deshostmatch
 print '-'*50
 
+#sys.exit()
 print "Run GWmakeDataFiles - real"
 
 #run "Gwmakedatafiles" section#
@@ -206,32 +231,41 @@ print "Run GWmakeDataFiles - real"
 #   -outFile_stdout  makeDataFiles_real.stdout  \
 #   -outDir_data   GWevent2_numepoch1_iz_real_text \
 
-b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season '+ season  + '  -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
+if not trigger=='null':
+    b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season '+ season  + '  -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
+else:
+    b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season '+ season  + '  -numepochs_min ' +numepochs_min + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
 
-print b 
+print 'B', b 
 #if running from ups we need to go to outdir because idk
 if ups:
     gwpostdir = os.environ['GWPOST_DIR']
     os.chdir(outdir)
     os.system("cp "+gwpostdir+"/FAKES_OVERLAID_" + fakeversion + ".DAT " + outdir)
-subprocess.call(b, shell=True)
+#subprocess.call(b, shell=True)
 
+print "real MakeDataFiles complete"
+#sys.exit()
 #Run bobby's code here
 
 print "Run GWmakeDataFiles - fake"
 
-b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season ' + season + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
+if not trigger=='null':
+    b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season ' + season + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
+else:
+    b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season ' + season + ' -numepochs_min ' +numepochs_min + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
 
 print b
 
 subprocess.call(b, shell=True)
+sys.exit()
 
 #if running from ups go back to ups dir
 if ups:
     os.chdir(gwpostdir)
 
 #Produce Truth Table for Fakes#
-explist=','.join(map(str,expnums))
+explist=','.join(map(str,oexpnums))
 
 # the database where diffimg outputs are stored                                 
 db='destest'
@@ -239,6 +273,7 @@ schema = 'marcelle'
 
 # the query you want to run to get the truth table data                         
 query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT, BAND, NITE, MJD from '+ schema +'.SNFAKEIMG where EXPNUM IN ('+explist+') order by SNFAKE_ID'
+print query
 
 # the file where you want to save the truth table                              
 
@@ -249,6 +284,7 @@ connection=easyaccess.connect(db)
 connection.query_and_save(query,filename)
 connection.close()
 
+#sys.exit()
 ### FOR THE FIRST RUN EXIT HERE TO LEARN NAMES OF VALUES WE NEED###
 print "Data Made"
  
@@ -260,14 +296,19 @@ print "Read Data"
 ###Plot5 Magerror Distribution ###
 ###Plots should include all bands###
 
-reals = diffimg.DataSet(os.path.join(outdir,outDir_datareal), label = 'reals')
-fakes = diffimg.DataSet(os.path.join(outdir,outDir_datafake), label = 'fakes')
+#print os.path.join(outdir,outDir_datareal)
+#reals = diffimg.DataSet(os.path.join(outdir,outDir_datareal), label = 'reals')
+#fakes = diffimg.DataSet(os.path.join(outdir,outDir_datafake), label = 'fakes')
+reals = diffimg.DataSet(outDir_datareal, label = 'reals')
+fakes = diffimg.DataSet(outDir_datafake, label = 'fakes')
 ###Need to generate fakes input on own###
 os.system('mv fakes_truth.tab '+outdir)
-fakes.get_fakes_input(os.path.join(outdir,config.get('GWmakeDataFiles-fake', 'fake_input')))
-truth = fakes.fakes_input
+#fakes.get_fakes_input(os.path.join(outdir,config.get('GWmakeDataFiles-fake', 'fake_input')))
+#truth = fakes.fakes_input
 
-
+print '-----'
+#print reals
+print '-----'
 
 rdatag = reals.set_mask(PHOTFLAG_bit=4096)
 fdatag = fakes.set_mask(PHOTFLAG_bit=4096)
@@ -281,73 +322,76 @@ ubands = np.unique(bands)
 
 
 
-bins = bins = np.arange(17,25,0.5)
+#bins = bins = np.arange(17,25,0.5)
 
 ###Generalize code to handle all bands/any combo of bands###
 
-fmaski = (fdatag.BAND=='i')
-fmaskz = (fdatag.BAND=='z')
-tmaski = (truth.BAND == 'i')
-tmaskz = (truth.BAND == 'z')
-
-print "Plot Efficiency"
-
-for i in range(0,len(ubands)):
-    fmask= (fdatag.BAND == ubands[i])
-    tmask = (truth.BAND == ubands[i])
-    fhist, bin_edges = np.histogram(fdatag.SIMMAG[fmask],bins = bins)
-    thist, bin_edges = np.histogram(truth.TRUEMAG[tmask], bins=bins)
-    plt.plot(bins[1:], fhist*100.0/thist, label = str(ubands[i]), lw=4)
-    plt.scatter(bins[1:], fhist*100.0/thist, lw=4)
-    plt.title('Efficiency')
-    plt.xlabel('Mag')
-    plt.ylabel('Percent Found')
-    plt.savefig(outplots + 'Efficiency for ' + str(ubands[i]) + '.png')
-    plt.clf()
-
-
-f_ihist, bin_edges = np.histogram(fdatag.SIMMAG[fmaski],bins=bins)
-f_zhist, bin_edges = np.histogram(fdatag.SIMMAG[fmaskz],bins=bins)
-
-t_ihist, bin_edges = np.histogram(truth.TRUEMAG[tmaski], bins=bins)
-t_zhist, bin_edges = np.histogram(truth.TRUEMAG[tmaskz], bins=bins)
-
-plt.figure()
-plt.plot(bins[1:], f_ihist*100.0/t_ihist, label= 'i-band', lw=4, color='orange')
-plt.plot(bins[1:], f_zhist*100.0/t_zhist,label='z-band',lw=4,color='darkblue')
-plt.scatter(bins[1:], f_ihist*100.0/t_ihist,lw=4,color='orange')
-plt.scatter(bins[1:], f_zhist*100.0/t_zhist,lw=4,color='darkblue')
-plt.title('Efficiency: Blue = z  Orange = i')
-plt.xlabel('Magnitude')
-plt.ylabel('Percent Found')
-plt.savefig(outplots + '/'+'efficiency.pdf')
-plt.clf()
-
-print "Plot DeltaMag/MAGERR histogram"
+#fmaski = (fdatag.BAND=='i')
+#fmaskz = (fdatag.BAND=='z')
+#tmaski = (truth.BAND == 'i')
+#tmaskz = (truth.BAND == 'z')
+#
+#print "Plot Efficiency"
+#
+#for i in range(0,len(ubands)):
+#    fmask= (fdatag.BAND == ubands[i])
+#    tmask = (truth.BAND == ubands[i])
+#    fhist, bin_edges = np.histogram(fdatag.SIMMAG[fmask],bins = bins)
+#    thist, bin_edges = np.histogram(truth.TRUEMAG[tmask], bins=bins)
+#    plt.plot(bins[1:], fhist*100.0/thist, label = str(ubands[i]), lw=4)
+#    plt.scatter(bins[1:], fhist*100.0/thist, lw=4)
+#    plt.title('Efficiency')
+#    plt.xlabel('Mag')
+#    plt.ylabel('Percent Found')
+#    plt.savefig(outplots + 'Efficiency for ' + str(ubands[i]) + '.png')
+#    plt.clf()
+#
+#
+#f_ihist, bin_edges = np.histogram(fdatag.SIMMAG[fmaski],bins=bins)
+#f_zhist, bin_edges = np.histogram(fdatag.SIMMAG[fmaskz],bins=bins)
+#
+#t_ihist, bin_edges = np.histogram(truth.TRUEMAG[tmaski], bins=bins)
+#t_zhist, bin_edges = np.histogram(truth.TRUEMAG[tmaskz], bins=bins)
+#
+#plt.figure()
+#plt.plot(bins[1:], f_ihist*100.0/t_ihist, label= 'i-band', lw=4, color='orange')
+#plt.plot(bins[1:], f_zhist*100.0/t_zhist,label='z-band',lw=4,color='darkblue')
+#plt.scatter(bins[1:], f_ihist*100.0/t_ihist,lw=4,color='orange')
+#plt.scatter(bins[1:], f_zhist*100.0/t_zhist,lw=4,color='darkblue')
+#plt.title('Efficiency: Blue = z  Orange = i')
+#plt.xlabel('Magnitude')
+#plt.ylabel('Percent Found')
+#plt.savefig(outplots + '/'+'efficiency.pdf')
+#plt.clf()
+#
+#print "Plot DeltaMag/MAGERR histogram"
 
 #Histogram of DeltaMag/MAGERR#
 
-deltai = fdatag.MAG[fmaski] - fdatag.SIMMAG[fmaski]
-deltaz = fdatag.MAG[fmaskz] - fdatag.SIMMAG[fmaskz]
-deltaiovererr = deltai/(fdatag.MAGERR[fmaski])
-deltazovererr = deltaz/(fdatag.MAGERR[fmaskz])
-bins2 = np.arange(-30,30,.1)
-iweights = np.ones_like(deltaiovererr)/float(len(deltaiovererr))
-zweights = np.ones_like(deltazovererr)/float(len(deltazovererr))
+#deltai = fdatag.MAG[fmaski] - fdatag.SIMMAG[fmaski]
+#deltaz = fdatag.MAG[fmaskz] - fdatag.SIMMAG[fmaskz]
+#deltaiovererr = deltai/(fdatag.MAGERR[fmaski])
+#deltazovererr = deltaz/(fdatag.MAGERR[fmaskz])
+#bins2 = np.arange(-30,30,.1)
+#iweights = np.ones_like(deltaiovererr)/float(len(deltaiovererr))
+#zweights = np.ones_like(deltazovererr)/float(len(deltazovererr))
+#
+#deltaiovererr_hist, bin_edges= np.histogram(deltaiovererr, weights= iweights, bins=bins2)
+#deltazovererr_hist, bin_edges= np.histogram(deltazovererr, weights= zweights, bins=bins2)
+#
+#plt.figure()
+#plt.plot(bins2[1:], deltaiovererr_hist, label= 'i-band', lw=3, color='orange')
+#plt.plot(bins2[1:], deltazovererr_hist, label= 'z-band', lw=3, color='blue')
+#plt.title('Delta Mag over Mag Error')
+#plt.ylabel('Percent of Total')
+#plt.savefig(outplots +'/'+'DeltaoverERR.pdf')
+#plt.clf()
 
-deltaiovererr_hist, bin_edges= np.histogram(deltaiovererr, weights= iweights, bins=bins2)
-deltazovererr_hist, bin_edges= np.histogram(deltazovererr, weights= zweights, bins=bins2)
-
-plt.figure()
-plt.plot(bins2[1:], deltaiovererr_hist, label= 'i-band', lw=3, color='orange')
-plt.plot(bins2[1:], deltazovererr_hist, label= 'z-band', lw=3, color='blue')
-plt.title('Delta Mag over Mag Error')
-plt.ylabel('Percent of Total')
-plt.savefig(outplots +'/'+'DeltaoverERR.pdf')
-plt.clf()
+#sys.exit()
 
 print "Number of candidates per ccd"
 #Plot Candidates per CCD #
+#print reals.data
 
 x = np.zeros(len(np.unique(reals.data.SNID)))
 y = np.unique(reals.data.SNID)
@@ -360,6 +404,8 @@ plt.ylabel('Number of Real Candidates')
 plt.xlabel('CCD Number')
 plt.savefig(outplots +'/'+'Hist_of_real_candidates_per_CCD.pdf')
 plt.clf()
+
+sys.exit()
 
 x = np.zeros(len(np.unique(fakes.data.SNID)))
 y = np.unique(fakes.data.SNID)

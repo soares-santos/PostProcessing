@@ -1,8 +1,8 @@
 
 ##### edit these lines before running the code:
-export ROOTDIR=/pnfs/des/scratch/gw/
-export ROOTDIR2=/data/des41.a/data/tosborn
-export SEASON=46
+export ROOTDIR=/pnfs/des/persistent/gw
+export ROOTDIR2=/data/des41.b/data/rbutler/sb/bench
+export SEASON=300
 #####
 
 
@@ -21,7 +21,7 @@ export EUPS_PATH=/cvmfs/des.opensciencegrid.org/eeups/fnaleups:$EUPS_PATH
 #other setups
 setup perl 5.18.1+6 # || exit 134
 setup Y2Nstack 1.0.6+18
-setup diffimg gwdevel12 
+setup diffimg #gw0 
 setup ftools v6.17 
 export HEADAS=$FTOOLS_DIR
 setup autoscan
@@ -62,5 +62,5 @@ export PFILES=${PWD}/syspfiles
 export SNANA_DIR=/data/des41.b/data/kessler/snana/snana
 export SNANA_ROOT=/data/des41.b/data/SNDATA_ROOT
 
-#export DIFFIMG_DIR=/data/des40.b/data/kherner/Diffimg-devel/diffimg-trunk
-#export PATH=$DIFFIMG_DIR/bin:$PATH
+export DIFFIMG_DIR=/data/des40.b/data/kherner/Diffimg-devel/diffimg-trunk
+export PATH=$DIFFIMG_DIR/bin:$PATH
