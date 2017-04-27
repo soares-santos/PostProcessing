@@ -1,6 +1,24 @@
 
+TEST SEASON: 89
+
 1) try running the current version
 2) fix the setup file 
 3) fix the path for in and out files
 4) work on each postproc step and fix/automate them
+5) construct a module for each postproc step (listed below) for use in a much shorter and cleaner version of postproc.py
+   -set up environment - DONE
+   -RUNMON check (with plots?; maybe not as module, maybe don't check RUNMON at all)
+   -forcePhoto
+   -HostMatch
+   -MakeTruthTable
+   -MakeDataFiles
+	a) real
+	b) fake
+   -Make plots (other)
+   -Make webpage
+6) Create code in run_postproc.py that queries to get all expnums in a season if no explist is provided (do this right before making a truth table)
 
+laterish) within step 1, make table of exposure, ccd, failures
+
+later) on/off switches for each step
+later) make it actually work with the ups options and config from Dillon's code
