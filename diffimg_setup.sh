@@ -1,8 +1,8 @@
 
 ##### edit these lines before running the code:
-export ROOTDIR=/pnfs/des/persistent/gw
-export ROOTDIR2=/data/des41.a/data/marcelle/postproc/test
-export SEASON=300
+#export ROOTDIR=/pnfs/des/persistent/gw
+#export ROOTDIR2=/data/des41.a/data/marcelle/postproc/test
+#export SEASON=300
 #####
 
 
