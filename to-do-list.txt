@@ -1,6 +1,10 @@
 
 TEST SEASON: 89
 
+***4/28/17
+try forcephoto with writeDB off
+see how long it takes, how many cands, etc.
+
 1) try running the current version
 2) fix the setup file 
 3) fix the path for in and out files
@@ -11,6 +15,7 @@ TEST SEASON: 89
    -forcePhoto
    -HostMatch
    -MakeTruthTable
+	-Marcelle has code that creates one megafits file
    -MakeDataFiles
 	a) real
 	b) fake
