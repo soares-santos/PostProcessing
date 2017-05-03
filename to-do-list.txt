@@ -23,6 +23,8 @@ see how long it takes, how many cands, etc.
    -Make webpage
 6) Create code in run_postproc.py that queries to get all expnums in a season if no explist is provided (do this right before making a truth table)
 
+--figure out how to resubmit only specific CCDs that failed (with connection to DB error) OR make code more robust against this error
+
 laterish) within step 1, make table of exposure, ccd, failures
 
 later) on/off switches for each step

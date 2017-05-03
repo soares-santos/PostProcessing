@@ -127,20 +127,25 @@ outstamps = outdir + '/' + 'stamps'
 #########
 # STEP 0: Setup the environment
 #########
+print os.getenv('EXPERIMENT'), '-0'
 
 print "Run STEP 0: Setup the environment"
 postproc.prep_environ(rootdir,outdir,season,setupfile)
+
+print os.getenv('EXPERIMENT'), '0'
 
 #########
 # STEP 1: Check processing outputs
 #########
 
+### this method assumes .FAIL files are cleared out when a CCD is reprocessed
 if len(expnums)>0:
     print "Run STEP 1: Check processing outputs"
-    print "This is not yet implemented. Coming soon..."
-   ### postproc.checkoutputs(expnums,season,outdir)
+    postproc.checkoutputs(season,expnums,outdir,expdir)
 else:
     print "WARNING: List of exposures is empty. Skipping STEP 1."
+
+print os.getenv('EXPERIMENT'), '1'
 
 #########
 # STEP 2: Forcephoto
@@ -148,6 +153,8 @@ else:
 
 print "Run STEP 2: Forcephoto"
 postproc.forcephoto(season,ncore,numepochs_min,writeDB)
+
+print os.getenv('EXPERIMENT'), '2'
 
 #########
 # STEP 3: Hostmatch

@@ -1,22 +1,117 @@
 import os
 import subprocess
+from glob import glob
+import pandas as pd
+from collections import OrderedDict as OD
 
 def prep_environ(rootdir,outdir,season,setupfile):
     os.environ['ROOTDIR']=rootdir
     os.environ['ROOTDIR2']=outdir
-    os.environ['SEASON']=season    
-    subprocess.call('source '+setupfile, shell=True)
+    os.environ['SEASON']=season
+    os.environ['SETUPFILE']=setupfile
+    print setupfile
+    #os.system('source '+setupfile)
+
+def checkoutputs(season,expnums,outdir,expdir):
+    logname = os.path.join(outdir,'checkoutputs_season89.log')
+    lf = open(logname,'w+')
+    lf.write('EXPOSURES PROVIDED: '),lf.write(','.join(map(str,sorted(expnums))))
+    lf.write('\n')
+    d = OD()
+    d['expnum'] = []
+    chips = range(1,63)
+    steps = range(1,29)
+    chips.remove(2),chips.remove(31),chips.remove(61)
+    for ch in chips:
+        ch = '%02d' % ch
+        d[ch] = []
+    for e in expnums:
+        d['expnum'].append(e)
+        e = str(e)
+        end = '*/'+e+'/'+'dp'+season
+        p = os.path.join(expdir,end)
+        opath = glob(p)
+        if len(opath)==1:
+            print opath[0]
+        else:
+            print p, 'does not exist. Check diffimg outputs.'
+            continue
+        for c in chips:
+            c = '%02d' % c
+            p2 = os.path.join(p,'*_'+c)
+            glist = glob(p2)
+            if len(glist)==1:
+                gp=glist[0]
+                for r in steps:
+                    r = '%02d' % r
+                    fail = 'RUN'+r+'*.FAIL'
+                    gpfail = os.path.join(gp,fail)
+                    globf = glob(gpfail)
+### The current assumption is that .FAIL files are cleared out when a CCD is reprocessed. 
+### If this is not true, uncomment the 5 lines below and tab the append and break lines. 
+### In that event, one must also consider how to deal with a RUN28 failure.
+                    if len(globf)==1:
+                        #nr = '%02d' % (int(r)+1)
+                        #log = 'RUN'+nr+'*.LOG'
+                        #gplog = os.path.join(gp,log)
+                        #globl = glob(gplog)
+                        #if len(globl)==0:
+                        d[c].append(int(r))
+                        break
+                else:
+                    d[c].append(0)
+
+    lf.write('EXPOSURES CHECKED: '),lf.write(','.join(map(str,sorted(d['expnum']))))
+    lf.write('\n')
+
+    nonex = []
+    for x in sorted(expnums):
+        if x not in d['expnum']:
+            nonex.append(x)
+    lf.write('EXPOSURES NOT FOUND: ')
+    if len(nonex)==0:
+        lf.write('none')
+    else:
+        lf.write(','.join(map(str,nonex)))
+    lf.write('\n\n')
+    
+    df1 = pd.DataFrame(d)
+    df = df1.set_index('expnum')
+    df['successes']=(df==0).astype(int).sum(axis=1)
+    df['fraction'] = ""
+    for exp in list(df.index.values):
+        frac = float(df.get_value(exp,'successes'))/59.
+        frac = round(frac,3)
+        df.set_value(exp,'fraction',frac)
+    
+    lf.write('# OF CCDS PROCESSED: ')
+    ccdsum = sum(df['successes'])
+    lf.write(str(ccdsum)),lf.write('\n')
+    
+    lf.write('TOTAL CCDS CHECKED: ')
+    ccdtot = 59*len(df['successes'])
+    lf.write(str(ccdtot)),lf.write('\n')
+    
+    lf.write('CCD SUCCESS RATE: ')
+    div = float(ccdsum)/float(ccdtot)
+    lf.write(str(round(div,3)))
+    lf.close()
+    
+    df.sort_index(inplace=True)
+    df.to_csv(os.path.join(outdir,'season89.csv'))
+            
 
 def forcephoto(season,ncore=4,numepochs_min=0,writeDB=False):    
-    a = 'forcePhoto_master.pl ' 
+    a = './forcePhoto_master.pl ' 
     a = a + ' -season ' + season 
     a = a + ' -numepochs_min ' + numepochs_min 
     a = a + ' -ncore ' + ncore 
-    a = a + ' -NOPROMPT ' 
+    a = a + ' -noprompt ' 
     if writeDB == True:
         a = a + ' -writeDB ' 
     print a
-##subprocess.call(a, shell=True)
+    a = 'source '+os.getenv('SETUPFILE')+'; '+a
+    subprocess.call(a,shell=True)
 
 def makedatafiles(season,format,numepochs_min,two_nite_trigger,outfile,outdir,fakeversion=None):
     a = 'makeDataFiles_fromSNforce' 
