@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """ 
-Ravi Gupta, Chris D'Andrea
+Ravi Gupta, Chris D'Andrea - adapted for GW candidates by Antonella Palmese Jan 2017
 10 Dec 2013
 This script queries the NCSA Oracle DB table SNCAND to obtain transient coordinates 
 which are then matched to potential host galaxies, whose information is given in 
@@ -17,6 +17,10 @@ OUTPUTS:
   -- outfile = "DES_hostmatch_sep_ABT.txt" (All objects w/in 15 arcsec ordered by ang. sep.)
   -- outfile2 = "DES_hostmatch_DLR_ABT.txt"  (This contains the actual hosts you want)
   -- outfile3 = "DES_host_discrepancy_ABT.txt" (List of objects for which host!=nearest object)
+
+v1.0 GW:  Jan 2017 -- Searches for hosts in a catalog containing Y1Q2 with Le Phare photozs, 
+                      2MASS and SDSS galaxies. The search is done in the healpix pixel containing the
+                      candidate and all the 8 adjacent pixels. 
 
 v2.1:  August 2014 -- Updates the searched catalog to be a mix of the SVA1-GOLD catalog
                       (where defined) and the SVA1 catalog.
@@ -63,6 +67,7 @@ import numpy as np
 import time
 import argparse
 from healpy.pixelfunc import ang2pix
+from healpy.pixelfunc import get_all_neighbours
 from astropy.io import fits
 from math import pi
 
@@ -94,8 +99,8 @@ parser.add_argument( "--password", "-p", help = "Password for NCSA access.  "
 parser.add_argument( "--verbose", "-v", help = "Print helpful statements to "
                      "check progress of code.  Default is false.", action = "count")
 
-parser.add_argument( "season", type=int, help = "Season number for transient. Default is 70. ",
-                     default=70, nargs=1)
+parser.add_argument( "--season", type=int, help = "Season number for transient. Default is 70. ",
+                     default=70)
 
 #parser.add_argument( "--atc", help = "Ingest all targets into the ATC. "
 #                     "Default is false.  In either case, transients info is "
@@ -128,24 +133,23 @@ db_flag  = 0         #Set to non-zero for each failure at DB update
 
 #################### Location and names of the catalog files ######################################
 
-#DIR = os.environ.get('TOPDIR_HOSTMATCH') 
-DIR = "/home/s1/palmese/GW_reject_cat/"
-DIR = "/data/des60.b/data/palmese/GW_reject_cat/"
-
-if not DIR:
-    print 'Environment variable for HOSTMATCH directory no set'
-    sys.exit("Environment variable not specified for HOSTMATCH; exiting ...")
-
 from time import strftime
 thisTime = strftime("%Y%m%d.%H%M%S")
 
-INPUT_DIR  = DIR + '/v1.0.0/'
-OUTPUT_DIR = DIR + '/hostmatching/RUNLOGS/' + thisTime + '/'
+#DIR = "/data/des60.b/data/palmese/GW_reject_cat/"
+#INPUT_DIR  = DIR + '/v1.0.1/'
+#OUTPUT_DIR = DIR + '/hostmatching/RUNLOGS/' + thisTime + '/'
+
+INPUT_DIR = os.environ.get('TOPDIR_HOSTMATCH') + '/'
+OUTPUT_DIR = os.environ.get('OUTDIR_HOSTMATCH') + '/'
+if not os.path.isdir(OUTPUT_DIR):
+    os.mkdir(OUTPUT_DIR)
+OUTPUT_DIR = OUTPUT_DIR + thisTime + '/'
 
 try:
     os.mkdir(OUTPUT_DIR, 0755)
 except:
-    sys.exit("Could not create output directory for RUNLOGS ... ")
+    sys.exit("Could not create output directory for RUNLOGS ... " + OUTPUT_DIR)
 
 outfile_sep      = OUTPUT_DIR + "byAngularSeparation.ABT.txt"
 outfile_dlr      = OUTPUT_DIR + "byDLR.ABT.txt"
@@ -195,6 +199,10 @@ logfile_atc.write('#             with this file given to the --input flag\n')
 logfile_atc.write('{0:<16}{1:<25}{2:<16}{3:<16}{4:<7}{5:<7}\n'.format(
                 '#TransientName','HostName','RA','DEC','DLR_RANK','Status'))
 
+#replace args.season with environment variable if it was set for compatibility with postproc.py
+season_number = os.environ.get('SEASON')
+if season_number:
+    args.season = season_number
 
 ###############################   MAIN   ##########################################################
 
@@ -208,11 +216,11 @@ def main():
         print 'verbose = ',args.verbose
     
     if args.testdb >0:
-	sngals_file = 'SNGALS_TEST'
-	sngals_file_id = 'OBJECTS_ID'
+	    sngals_file = 'SNGALS_TEST'
+	    sngals_file_id = 'COADD_OBJECTS_ID'#'OBJECTS_ID'
     else:
-	sngals_file = 'SNGALS'
-        sngals_file_id = 'COADD_OBJECTS_ID'
+        sngals_file = 'SNGALS'
+        sngals_file_id = 'OBJECTS_ID'# 'COADD_OBJECTS_ID'
 
     start_time = time.time()
 
@@ -246,9 +254,9 @@ def main():
                "and c.snfake_id=0 and c.cand_type >=0 "
 	       "and g.SNGALID is NULL "
                #"and g.SNGALID is NULL and c.FIELD is not NULL ") 
-               "and c.season="+str(args.season[0])+" ")
+               "and c.season="+str(args.season)+" ")
 
-    print query_new
+    #print query_new
     cursor.execute(query_new)
     data=cursor.fetchall()
 
@@ -259,7 +267,22 @@ def main():
     if len(data) > 0:
         #data.sort(key=lambda x:x[4])
         data = np.array(data)
-    print data
+    else:
+        print
+        print "WARNING:"
+        print "The list of galaxies to host match is empty."
+        print "The query below has failed:"
+        print
+        print query_new
+        print
+        print "This could be due to a previous successful run."
+        print "If you wish to rerun, please clear the database using the following command:"
+        print
+        print "delete from SNGALS where season="+str(args.season)+';'
+        print
+        return
+
+        
 
     #----------------------------------------------------------------------------------------------
     #------------ Query the maximum SNGALID to start counting with --------------------------------
@@ -290,6 +313,7 @@ def main():
     ra_cand = ra_cand*pi/180.
     dec_cand = (90.-dec_cand)*pi/180.
     pix = ang2pix(32,dec_cand,ra_cand)
+    fields_cands = np.array(pix)
     fields = np.unique(pix)
 
     #----------------------------------------------------------------------------------------------
@@ -332,12 +356,13 @@ def main():
         if args.verbose > 0:
             print "Starting field = ",thisField
 
-        # Find all SNe in this field ...                                                                              
+        # Find all candidates in this field ...                                                                              
         NCands = 0
         if len(data) > 0:
             index  = np.where(pix == thisField)
-            index  = [s for s in data] #if s[4].find(thisField) >=0]  #### Check if this line now makes sense
-            NCands = len(index)
+            index  = [s for s in data[index]]  
+            NCands = len(index) 
+            pix_edges = get_all_neighbours(32,thisField)
 
         if args.verbose > 0 :
             print "\t",NCands," entries to match in this field"
@@ -353,7 +378,16 @@ def main():
                 print filename+'\n'
 
             h = fits.open(filename)
-            cat = h[1].data
+            cat = h[1].data    
+
+            for pix_edge in pix_edges:
+                if pix_edge < 10000:
+                    filename  = INPUT_DIR + "GW_cat_hpx_0" + str(pix_edge) + ".fits"
+                else:
+                    filename  = INPUT_DIR + "GW_cat_hpx_" + str(pix_edge) + ".fits"
+                h = fits.open(filename)
+                cat_edge = h[1].data
+                cat = np.concatenate((cat,cat_edge)) 
 #            cat = np.loadtxt(filename, \
 #                                 dtype={'names': ('COADD_OBJECTS_ID','RA','DEC','PHOTOZ','PHOTOZ_ERR', \
 #                                                      'MAG_AUTO_G','MAG_AUTO_R','MAG_AUTO_I','MAG_AUTO_Z', \
@@ -592,10 +626,10 @@ def main():
                                            "PHOTOZ_ERR, MAG_AUTO_I, "
                                            "THETA_IMAGE, A_IMAGE, B_IMAGE, "
                                            "SNID, TRANSIENT_NAME, SNGALID, SEPARATION, "
-                                           "DLR_RANK, HOST, SEASON, SURVEY ) "   #Add DLR again once the a b issues are fixed
+                                           "DLR_RANK, HOST, SEASON, SURVEY,MAG_APER_4_I ) "   #Add DLR again once the a b issues are fixed
                                            "VALUES ("
                                            "{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},"
-                                           "{13},{14},{15},{16} )" )
+                                           "{13},{14},{15},{16},{17} )" )
                                 
                                 # The Galaxy Catalogs use 99.999 for mag uncertainties.
                                 # We have an upper limit of 9.999.
@@ -635,7 +669,7 @@ def main():
                                                          hostinfo['SNID'][k],\
                                                          hostinfo['transient_name'][k],temp_galid,\
                                                          hostinfo['sep'][k],\
-                                                         hostinfo['rank'][k],hostinfo['host'][k],args.season[0],'\''+array['CATALOG'][tt]+'\'')
+                                                         hostinfo['rank'][k],hostinfo['host'][k],args.season,'\''+array['CATALOG'][tt]+'\'',array['MAG_I'][tt])
                                 
                                 if args.verbose > 0:
                                     print hostinfo['SNID'][k],hostinfo['transient_name'][k],\
@@ -653,7 +687,7 @@ def main():
                                 except:
                                     db_status  = 1
                                     #db_flag   += 1
-                                print hostlessFlag
+                                #print hostlessFlag
 
                                 logfile_db.write( dbstring.format(hostinfo['SNID'][k],
                                                                   hostinfo['transient_name'][k],

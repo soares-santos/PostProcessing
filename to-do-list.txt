@@ -5,6 +5,24 @@ TEST SEASON: 89
 try forcephoto with writeDB off
 see how long it takes, how many cands, etc.
 
+***5/3/17
+-run forcephoto 3 times: writeDB off, on, on
+-make corrections necessary corresponding to contents of .ini file
+-test truthtable step
+-make deshostmatch_v2 into a function that can be called as a module in postproc.py hostmatch function
+
+***5/5/17
+-add code to create one mega fits file for all candidates
+-add timing information to log file
+-plots
+	-efficiency
+	-pull
+	-# of candidates per ccd
+	-RA/DEC map
+	-SNR (fakes)
+-incorporate creation of master list into postprocessing
+	
+
 1) try running the current version
 2) fix the setup file 
 3) fix the path for in and out files

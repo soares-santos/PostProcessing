@@ -33,7 +33,7 @@ if ups:
 
 ## Set outdir
 if args.outputdir == None:
-    outdir = config.get('data','out')
+    outdir = config.get('general','outdir')
 else:
     outdir = args.outdir
 
@@ -58,8 +58,8 @@ else:
 ## Get the list of exposures
 if args.expnums == None:
     expnums = []
-    indir = config.get('data','indir')
-    expnums_listfile = config.get('data','exposures_listfile')
+    indir = config.get('general','indir')
+    expnums_listfile = config.get('general','exposures_listfile')
     expnums_listfile = os.path.join(indir,expnums_listfile)
     try:
         explist = open(expnums_listfile,'r')
@@ -83,27 +83,27 @@ setupfile = config.get('general','env_setup_file')
 
 ncore = config.get('GWFORCE', 'ncore')
 
-numepochs_min_1 = config.getint('GWFORCE', 'numepochs_min')
-numepochs_min_2 = config.getint('GWmakeDataFiles', 'numepochs_min')
-numepochs_min = str(min(numepochs_min_1,numepochs_min_2))
+numepochs_min_1 = str(config.getint('GWFORCE', 'numepochs_min'))
+numepochs_min_2 = str(config.getint('GWmakeDataFiles', 'numepochs_min'))
+#numepochs_min = str(min(numepochs_min_1,numepochs_min_2))
 
 writeDB = config.getboolean('GWFORCE', 'writeDB')
+
+version_hostmatch = config.get('HOSTMATCH', 'version')
+
+db = config.get('general', 'db')
+schema = config.get('general', 'schema')
+filename = config.get('truthtable', 'filename')
 
 format = config.get('GWmakeDataFiles', 'format')
 
 two_nite_trigger = config.get('GWmakeDataFiles', '2nite_trigger')
 
 outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
-outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
-
 outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
-outDir_datareal = os.path.join(outdir,outDir_datareal)
 
 outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
-outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
-
 outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
-outDir_datafake = os.path.join(outdir,outDir_datafake)
 
 fakeversion = config.get('GWmakeDataFiles-fake', 'version')
 
@@ -127,12 +127,10 @@ outstamps = outdir + '/' + 'stamps'
 #########
 # STEP 0: Setup the environment
 #########
-print os.getenv('EXPERIMENT'), '-0'
 
 print "Run STEP 0: Setup the environment"
-postproc.prep_environ(rootdir,outdir,season,setupfile)
-
-print os.getenv('EXPERIMENT'), '0'
+postproc.prep_environ(rootdir,outdir,season,setupfile,version_hostmatch,db,schema)
+print
 
 #########
 # STEP 1: Check processing outputs
@@ -141,27 +139,27 @@ print os.getenv('EXPERIMENT'), '0'
 ### this method assumes .FAIL files are cleared out when a CCD is reprocessed
 if len(expnums)>0:
     print "Run STEP 1: Check processing outputs"
-    postproc.checkoutputs(season,expnums,outdir,expdir)
+    postproc.checkoutputs(expnums)
 else:
     print "WARNING: List of exposures is empty. Skipping STEP 1."
-
-print os.getenv('EXPERIMENT'), '1'
+print
 
 #########
 # STEP 2: Forcephoto
 #########
 
 print "Run STEP 2: Forcephoto"
-postproc.forcephoto(season,ncore,numepochs_min,writeDB)
-
-print os.getenv('EXPERIMENT'), '2'
+#postproc.forcephoto(ncore,numepochs_min_1,writeDB)
+print
 
 #########
 # STEP 3: Hostmatch
 #########
 
 print "Run STEP 3: Hostmatch"
-print "This is not yet implemented. Coming soon..."
+import desHostMatch
+desHostMatch.main()
+print
 
 #########
 # STEP 4: Make truth table
@@ -169,19 +167,27 @@ print "This is not yet implemented. Coming soon..."
 
 if len(expnums)>0:
     print "Run STEP 4: Make truth table"
-    print "This is not yet implemented. Coming soon..."
+    postproc.truthtable(expnums,filename)
 else:
     print "WARNING: List of exposures is empty. Skipping STEP 4."
+print
 
 #########
 # STEP 5: Make datafiles
 #########
 
 print "Run STEP 5: Make datafiles"
-postproc.makedatafiles(season,format,numepochs_min,two_nite_trigger,
-                       outFile_stdoutreal,outDir_datareal)
-postproc.makedatafiles(season,format,numepochs_min,two_nite_trigger,
-                       outFile_stdoutfake,outDir_datafake,fakeversion)
+#postproc.makedatafiles(format,numepochs_min_2,two_nite_trigger,outFile_stdoutreal,outDir_datareal)
+
+if not fakeversion=='KBOMAG20ALLSKY':
+    postproc.makedatafiles(format,numepochs_min_2,two_nite_trigger,outFile_stdoutfake,outDir_datafake,fakeversion)
+else:
+    print "No datafiles made for fakes because fakeversion=KBOMAG20ALLSKY."
+print                                                                                    
+
+print "Run STEP 5b: Combine real datafiles"
+postproc.combinedatafiles()
+print
 
 #########
 # STEP 6: Make plots
@@ -189,6 +195,7 @@ postproc.makedatafiles(season,format,numepochs_min,two_nite_trigger,
 
 print "Run STEP 6: Make plots"
 print "This is not yet implemented. Coming soon..."
+print
 
 #########
 # STEP 7: Make webpage
@@ -196,7 +203,7 @@ print "This is not yet implemented. Coming soon..."
 
 print "Run STEP 7: Make webpage"
 print "This is not yet implemented. Coming soon..."
-
+print
 
 
 
