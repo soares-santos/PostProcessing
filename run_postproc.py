@@ -3,6 +3,8 @@ import argparse
 import ConfigParser
 import sys
 import postproc
+import numpy as np
+import pandas as pd
 
 ## Read config file
 config = ConfigParser.ConfigParser()
@@ -51,9 +53,9 @@ else:
 
 ## Set triggermjd
 if args.mjdtrigger == None:
-    triggermjd = config.get('general','triggermjd')
+    triggermjd = config.getfloat('general','triggermjd')
 else:
-    triggermjd = args.mjdtrigger
+    triggermjd = float(args.mjdtrigger)
 
 ## Get the list of exposures
 if args.expnums == None:
@@ -69,17 +71,33 @@ if args.expnums == None:
             expnums = map(int,expnums)
     except:
         print "ERROR: List of exposures file not found or empty."
-        sys.exit(1)
+        expnums = []
+        #sys.exit(1)
 else:
     expnums = args.expnums
 
 ## Get remaining configuration from the .ini file 
 
 rootdir = config.get('general','rootdir')
+indir = config.get('general','indir')
 expdir = os.path.join(rootdir,'exp')
 forcedir = os.path.join(rootdir,'forcephoto')+'/images/dp'+season+'/*'
 
 setupfile = config.get('general','env_setup_file')
+
+triggerid = config.get('general','triggerid')
+propid = config.get('general','propid')
+
+mlscore_cut = config.getfloat('plots','mlscore_cut')
+
+blacklist_file = config.get('masterlist', 'blacklist')
+masterfile_1 = config.get('masterlist', 'filename_1')
+masterfile_2 = config.get('masterlist', 'filename_2')
+
+logfile = config.get('checkoutputs', 'logfile')
+ccdfile = config.get('checkoutputs', 'ccdfile')
+goodchecked = config.get('checkoutputs', 'goodfile')
+steplist = config.get('checkoutputs', 'steplist')
 
 ncore = config.get('GWFORCE', 'ncore')
 
@@ -93,7 +111,9 @@ version_hostmatch = config.get('HOSTMATCH', 'version')
 
 db = config.get('general', 'db')
 schema = config.get('general', 'schema')
+
 filename = config.get('truthtable', 'filename')
+truthplusfile = config.get('truthtable', 'plusname')
 
 format = config.get('GWmakeDataFiles', 'format')
 
@@ -101,6 +121,8 @@ two_nite_trigger = config.get('GWmakeDataFiles', '2nite_trigger')
 
 outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
 outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
+
+combined_fits = config.get('GWmakeDataFiles-real', 'combined_fits')
 
 outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
 outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
@@ -125,31 +147,56 @@ outplots = outdir + '/' + 'plots'
 outstamps = outdir + '/' + 'stamps'
 
 #########
-# STEP 0: Setup the environment
+# STEP -1: Set up the environment
 #########
 
-print "Run STEP 0: Setup the environment"
-postproc.prep_environ(rootdir,outdir,season,setupfile,version_hostmatch,db,schema)
+print "Run STEP -1: Set up the environment"
+postproc.prep_environ(rootdir,indir,outdir,season,setupfile,version_hostmatch,db,schema)
 print
 
 #########
-# STEP 1: Check processing outputs
+# STEP 0: Create initial master list, check processing outputs
 #########
+
+print "Run STEP 0: Create initial master list, check processing outputs"
+if len(expnums)>0:
+    expniteband_df,master = postproc.masterlist(masterfile_1,blacklist_file,triggerid,propid,expnums)
+else:
+    print "No exposures specified by user. All exposures taken under trigger id "+str(triggerid)+" and prop id "+str(propid)+" will be used for the initial master list and the checkoutputs step."
+    expniteband_df,master = postproc.masterlist(masterfile_1,blacklist_file,triggerid,propid)
+print
 
 ### this method assumes .FAIL files are cleared out when a CCD is reprocessed
-if len(expnums)>0:
-    print "Run STEP 1: Check processing outputs"
-    postproc.checkoutputs(expnums)
+if len(expniteband_df)>0:
+    expnums,a_blacklist,ccddf = postproc.checkoutputs(expniteband_df,logfile,ccdfile,goodchecked,steplist)
 else:
-    print "WARNING: List of exposures is empty. Skipping STEP 1."
+    print "ERROR: No exposures provided, and no exposures found matching the trigger id and prop id provided in the .ini file:"
+    print
+    print "TRIGGER ID: "+str(triggerid)
+    print "PROP ID: "+str(propid)
+    print
+    print "EXITING."
+    print
+    sys.exit()
 print
+
+#########
+# STEP 1: Create final master list
+#########
+
+print "Run STEP 1: Create final master list"
+expniteband_df,master = postproc.masterlist(masterfile_2,blacklist_file,triggerid,propid,expnums,a_blacklist)
+print
+
+expnums = expniteband_df['expnum'].tolist()
+#sys.exit()
 
 #########
 # STEP 2: Forcephoto
 #########
 
 print "Run STEP 2: Forcephoto"
-#postproc.forcephoto(ncore,numepochs_min_1,writeDB)
+postproc.forcephoto(ncore,numepochs_min_1,writeDB)
 print
 
 #########
@@ -157,8 +204,8 @@ print
 #########
 
 print "Run STEP 3: Hostmatch"
-import desHostMatch
-desHostMatch.main()
+#import desHostMatch
+#desHostMatch.main()
 print
 
 #########
@@ -167,7 +214,7 @@ print
 
 if len(expnums)>0:
     print "Run STEP 4: Make truth table"
-    postproc.truthtable(expnums,filename)
+    truthplus = postproc.truthtable(expnums,filename,truthplusfile)
 else:
     print "WARNING: List of exposures is empty. Skipping STEP 4."
 print
@@ -180,21 +227,24 @@ print "Run STEP 5: Make datafiles"
 #postproc.makedatafiles(format,numepochs_min_2,two_nite_trigger,outFile_stdoutreal,outDir_datareal)
 
 if not fakeversion=='KBOMAG20ALLSKY':
-    postproc.makedatafiles(format,numepochs_min_2,two_nite_trigger,outFile_stdoutfake,outDir_datafake,fakeversion)
+#    postproc.makedatafiles(format,numepochs_min_2,two_nite_trigger,outFile_stdoutfake,outDir_datafake,fakeversion)
+    one=1
 else:
     print "No datafiles made for fakes because fakeversion=KBOMAG20ALLSKY."
 print                                                                                    
 
 print "Run STEP 5b: Combine real datafiles"
-postproc.combinedatafiles()
+fitsname = postproc.combinedatafiles(master,combined_fits,outDir_datareal)
 print
 
 #########
 # STEP 6: Make plots
 #########
 
+skip=False
 print "Run STEP 6: Make plots"
-print "This is not yet implemented. Coming soon..."
+print
+realdf = postproc.makeplots(ccddf,master,truthplus,fitsname,expnums,triggermjd,mlscore_cut,skip)
 print
 
 #########
@@ -203,6 +253,7 @@ print
 
 print "Run STEP 7: Make webpage"
 print "This is not yet implemented. Coming soon..."
+postproc.createhtml(fitsname,realdf,master)
 print
 
 

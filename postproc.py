@@ -1,15 +1,25 @@
 import os
+import sys
+from time import time
+import math
 import subprocess
 from glob import glob
 import pandas as pd
 from collections import OrderedDict as OD
 import easyaccess
-from astropy.io import fits
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+from astropy.io import fits
+from astropy.table import Table
+import fitsio
+import psycopg2
+import HTML
 
-def prep_environ(rootdir,outdir,season,setupfile,version_hostmatch,db,schema):
+def prep_environ(rootdir,indir,outdir,season,setupfile,version_hostmatch,db,schema):
     os.environ['ROOTDIR']=rootdir
     os.environ['ROOTDIR2']=outdir
+    os.environ['INDIR']=indir
     os.environ['EXPDIR']=os.path.join(rootdir,'exp')
     os.environ['SEASON']=season
     os.environ['SETUPFILE']=setupfile
@@ -17,17 +27,174 @@ def prep_environ(rootdir,outdir,season,setupfile,version_hostmatch,db,schema):
     os.environ['OUTDIR_HOSTMATCH'] = os.path.join(outdir,'hostmatch')
     os.environ['DB'] = db
     os.environ['SCHEMA'] = schema
-        
-def checkoutputs(expnums):
+
+def masterlist(filename,blacklist_file,seqid,propid,expnums=None,a_blacklist=None):
+    indir = os.environ.get('INDIR')
+    outdir = os.environ.get('ROOTDIR2')
+    outdir = os.path.join(outdir,'masterlist')
+    if not os.path.isdir(outdir):
+        os.mkdir(outdir)
+    
+    filename = os.path.join(outdir,filename)
+
+    if os.path.isfile(os.path.join(indir,blacklist_file)):
+        blacklist = list(np.genfromtxt(blacklist_file,usecols=(0),unpack=True))
+    else:
+        blacklist = []
+
+    if a_blacklist:
+        blacklist = np.concatenate((blacklist,a_blacklist),axis=0)
+
+    blacklist = [int(x) for x in blacklist]
+
+    if expnums:
+        query_exp = """select id as expnum, ra, declination as dec, filter, exptime, airmass, seeing, qc_teff, seqnum, program, object as hex, EXTRACT(EPOCH FROM date - '1858-11-17T00:00:00Z')/(24*60*60) as mjd, TO_CHAR(date - '12 hours'::INTERVAL, 'YYYYMMDD') AS nite 
+from exposure 
+where propid='2016B-0124' and ra is not null 
+and id IN """+str(tuple(expnums))+""" order by id"""
+        query_count = """select * from (
+WITH objnights AS (
+SELECT obstac.nightmjd(date), object, ra, declination
+FROM exposure.exposure
+WHERE delivered
+      AND propid='2016B-0124'
+      AND seqid="""+seqid+"""
+      AND id IN """+str(tuple(expnums))+"""
+GROUP BY obstac.nightmjd(date), object,ra,declination
+)
+SELECT COUNT(*), ra, declination as dec, object as hex
+FROM objnights
+GROUP BY object,ra,declination
+) as foo order by ra""" 
+
+    else:
+        query_exp = """select id as expnum, ra, declination as dec, filter, exptime, airmass, seeing, qc_teff, seqnum, program, object as hex, EXTRACT(EPOCH FROM date - '1858-11-17T00:00:00Z')/(24*60*60) as mjd, TO_CHAR(date - '12 hours'::INTERVAL, 'YYYYMMDD') AS nite 
+from exposure 
+where propid='2016B-0124' and ra is not null 
+order by id"""
+        query_count = """select * from (
+WITH objnights AS (
+SELECT obstac.nightmjd(date), object, ra, declination
+FROM exposure.exposure
+WHERE delivered
+      AND propid='2016B-0124'
+      AND seqid="""+seqid+"""
+GROUP BY obstac.nightmjd(date), object, ra,declination
+)
+SELECT COUNT(*), ra, declination as dec, object as hex
+FROM objnights
+GROUP BY object,ra,declination
+) as foo order by ra"""
+
+    conn =  psycopg2.connect(database='decam_prd',
+                               user='decam_reader',
+                               host='des20.fnal.gov',
+                               #password='THEPASSWORD',
+                               port=5443) 
+
+    print query_exp
+    #print
+    #print query_count
+
+    expdf = pd.read_sql(query_exp,conn)
+
+    #ctdf = pd.read_sql(query_count,conn)
+
+    conn.close()
+
+    #print
+    #print list(expdf)
+
+    expdf = expdf.loc[~expdf['expnum'].isin(blacklist)]
+
+    expdf = expdf.sort_values(by=['ra','mjd'])
+
+    expdf['dup'] = expdf.duplicated(subset=['ra','nite'])
+
+    epoch = []
+
+    noDupes = []
+    [noDupes.append(i) for i in expdf['ra'] if not noDupes.count(i)]
+    for x in noDupes:
+        ep = 0
+        for y in range(len(expdf['ra'])):
+            if x==expdf['ra'][y] and expdf['dup'][y]==True:
+                ep = ep
+                epoch.append(ep)
+            elif x==expdf['ra'][y]:
+                ep = ep + 1
+                epoch.append(ep)
+
+    ### strip hex string to just ra/dec term
+    striphex = []
+    for ihex in expdf['hex']:
+        a = ihex
+        a = a.split('hex')
+        a = a[1].split('tiling')
+        new = a[0].strip()
+        striphex.append(new)
+    
+    niteform = lambda x: int(x)
+    expdf['nite'] = expdf['nite'].map(niteform)
+
+    mjdform = lambda x: round(x,3)
+    expdf['mjd'] = expdf['mjd'].map(mjdform)
+
+    expdf['epoch'] = epoch
+
+    expdf['striphex'] = striphex
+    
+    tbhdu1 = fits.BinTableHDU.from_columns(
+        [fits.Column(name='fullhex', format='A69', array=expdf['hex']),
+         fits.Column(name='hex', format='A8', array=striphex),
+         fits.Column(name='epoch', format='K', array=expdf['epoch']),
+         fits.Column(name='expnum', format='K', array=expdf['expnum']),
+         fits.Column(name='RA', format='E', array=expdf['ra']),
+         fits.Column(name='DEC', format='E', array=expdf['dec']),
+         fits.Column(name='nite', format='K', array=expdf['nite']),
+         fits.Column(name='mjd', format='E', array=expdf['mjd']),
+         fits.Column(name='t_eff', format='E', array=expdf['qc_teff']),
+         ])
+
+    tbhdu1.writeto(filename,clobber=True)
+    
+    f=open(os.path.join(outdir,blacklist_file),'w')
+    f.write(str(sorted(set(blacklist))))
+    f.close()
+    
+    return expdf[['expnum','nite','filter']],filename
+
+def checkoutputs(expdf,logfile,ccdfile,goodchecked,steplist):
+    expnums = expdf['expnum'].tolist()
+    nites = expdf['nite'].tolist()
+    bands = expdf['filter'].tolist()
+
     season = os.environ.get('SEASON')
     outdir = os.path.join(os.environ.get('ROOTDIR2'),'checkoutputs')
     if not os.path.isdir(outdir):
         os.mkdir(outdir)
+
+    steplist = os.path.join(os.environ.get('INDIR'),steplist)
+    f = open('steplist.txt','r')
+    stepnames = f.readlines()
+    f.close()
+
+    stepnames = map(lambda x: x.strip(), stepnames)
+
+    goodchecked = os.path.join(outdir,goodchecked)
+    if os.path.isfile(goodchecked):
+        f = open(goodchecked,'r')
+        good = f.readlines()
+        f.close()
+        good = map(lambda x: int(x.strip()), good)        
+    else:
+        good = []
+
     expdir = os.environ.get('EXPDIR')
-    logname = os.path.join(outdir,'checkoutputs_season89.log')
+    logname = os.path.join(outdir,logfile)
     lf = open(logname,'w+')
     lf.write('EXPOSURES PROVIDED: '),lf.write(','.join(map(str,sorted(expnums))))
-    lf.write('\n')
+    lf.write('\n\n')
     d = OD()
     d['expnum'] = []
     chips = range(1,63)
@@ -37,48 +204,54 @@ def checkoutputs(expnums):
         ch = '%02d' % ch
         d[ch] = []
     for e in expnums:
-        d['expnum'].append(e)
+        nite = nites[expnums.index(e)]
+        nite = str(nite)
+        band = bands[expnums.index(e)]
         e = str(e)
-        end = '*/'+e+'/'+'dp'+season
+        end = nite+'/'+e+'/'+'dp'+season
         p = os.path.join(expdir,end)
-        opath = glob(p)
-        if len(opath)==1:
-            print opath[0]
-        else:
-            print p, 'does not exist. Check diffimg outputs.'
-            continue
-        for c in chips:
-            c = '%02d' % c
-            p2 = os.path.join(p,'*_'+c)
-            glist = glob(p2)
-            if len(glist)==1:
-                gp=glist[0]
-                for r in steps:
-                    r = '%02d' % r
-                    fail = 'RUN'+r+'*.FAIL'
-                    gpfail = os.path.join(gp,fail)
-                    globf = glob(gpfail)
+        if int(e) not in good:
+            if os.path.isdir(p):
+                print str(expnums.index(int(e)))+'/'+str(len(expnums))+' - '+p
+                d['expnum'].append(e)
+            else:
+                print str(expnums.index(int(e)))+'/'+str(len(expnums))+' - '+p, 'does not exist. Check diffimg outputs.'
+                continue
+            for c in chips:
+                c = '%02d' % c
+                p2 = os.path.join(p,band+'_'+c)
+                if os.path.isdir(p2):
+                    for r in steps:
+                        fail = stepnames[r-1]+'.FAIL'
+                        gpfail = os.path.join(p2,fail)
 ### The current assumption is that .FAIL files are cleared out when a CCD is reprocessed. 
-### If this is not true, uncomment the 5 lines below and tab the append and break lines. 
+### If this is not true, uncomment the 3 lines below and tab the append and break lines. 
 ### In that event, one must also consider how to deal with a RUN28 failure.
-                    if len(globf)==1:
-                        #nr = '%02d' % (int(r)+1)
-                        #log = 'RUN'+nr+'*.LOG'
-                        #gplog = os.path.join(gp,log)
-                        #globl = glob(gplog)
-                        #if len(globl)==0:
-                        d[c].append(int(r))
-                        break
-                else:
-                    d[c].append(0)
+                        if os.path.isfile(gpfail):
+                            #log = stepnames[r]+'.LOG'
+                            #plog = os.path.join(gp,log)
+                            #if os.path.isfile(plog):
+                            d[c].append(int(r))
+                            break
+                    else:
+                        d[c].append(0)
+        else:
+            print str(expnums.index(int(e)))+'/'+str(len(expnums))+' - '+p
+            d['expnum'].append(e)
+            for c in chips:
+                c = '%02d' % c
+                d[c].append(0)
 
     lf.write('EXPOSURES CHECKED: '),lf.write(','.join(map(str,sorted(d['expnum']))))
-    lf.write('\n')
+    lf.write('\n\n')
 
-    nonex = []
+    nonex,yesex = [],[]
     for x in sorted(expnums):
+        x=str(x)
         if x not in d['expnum']:
             nonex.append(x)
+        else:
+            yesex.append(x)
     lf.write('EXPOSURES NOT FOUND: ')
     if len(nonex)==0:
         lf.write('none')
@@ -88,6 +261,14 @@ def checkoutputs(expnums):
     
     df1 = pd.DataFrame(d)
     df = df1.set_index('expnum')
+
+    ccddf = df.copy()
+
+    listgood = df.loc[df.sum(axis=1) == 0].index
+    listgood = listgood.tolist()
+    listgood = map(lambda x: int(x), listgood)
+    np.savetxt(goodchecked,sorted(listgood),fmt='%d')
+
     df['successes']=(df==0).astype(int).sum(axis=1)
     df['fraction'] = ""
     for exp in list(df.index.values):
@@ -109,7 +290,9 @@ def checkoutputs(expnums):
     lf.close()
     
     df.sort_index(inplace=True)
-    df.to_csv(os.path.join(outdir,'season89.csv'))
+    df.to_csv(os.path.join(outdir,ccdfile))
+
+    return yesex,nonex,ccddf
             
 def forcephoto(ncore=4,numepochs_min=0,writeDB=False):    
     season = os.environ.get('SEASON')
@@ -122,9 +305,9 @@ def forcephoto(ncore=4,numepochs_min=0,writeDB=False):
         a = a + ' -writeDB ' 
     print a
     a = 'source '+os.getenv('SETUPFILE')+'; '+a
-    subprocess.call(a,shell=True)
+    #subprocess.call(a,shell=True)
  
-def truthtable(expnums,filename):
+def truthtable(expnums,filename,truthplus):
     season = os.environ.get('SEASON')
     outdir = os.path.join(os.environ.get('ROOTDIR2'),'truthtable')
     if not os.path.isdir(outdir):
@@ -134,6 +317,7 @@ def truthtable(expnums,filename):
 
     explist=','.join(map(str,expnums))
 
+### Truth table (normal)
     query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT, BAND, NITE, MJD, SEASON from '+ schema +'.SNFAKEIMG where EXPNUM IN ('+explist+') and SEASON='+ season +' order by SNFAKE_ID'
     print query
 
@@ -141,7 +325,22 @@ def truthtable(expnums,filename):
     connection=easyaccess.connect(db)
     connection.query_and_save(query,filename)
 
+    print
+
+### Truth table plus
+
+    #query='select f.SNFAKE_ID, f.EXPNUM, f.CCDNUM, o.RA, o.DEC, o.MAG, o.FLUX, o.FLUX_ERR, f.TRUEMAG, f.TRUEFLUXCNT, o.FLUX, o.SEXFLAGS, f.BAND, f.NITE, f.MJD, f.SEASON from '+ schema +'.SNFAKEIMG f, '+ schema +'.SNOBS o where f.SNFAKE_ID=o.SNFAKE_ID and f.EXPNUM=o.EXPNUM and f.SEASON='+ season +' and f.SEASON=o.SEASON order by SNFAKE_ID'
+
+    query = 'select SNFAKE_ID, EXPNUM, CCDNUM, RA, DEC, -2.5*log(10,FLUXCNT)+ZERO_POINT as MAG, MAGOBS_ERR as MAGERR, FLUXCNT, TRUEMAG, TRUEFLUXCNT, SNR_DIFFIM as SNR, REJECT, ML_SCORE, BAND, NITE, SEASON from '+ schema +'.SNFAKEMATCH where SEASON='+ season +' order by SNFAKE_ID'
+
+    print query
+
+    plus = connection.query_to_pandas(query)
+    connection.query_and_save(query,os.path.join(outdir,truthplus))
+
     connection.close()
+
+    return plus
 
 def makedatafiles(format,numepochs_min,two_nite_trigger,outfile,outdir,fakeversion=None):
     season = os.environ.get('SEASON')
@@ -162,10 +361,25 @@ def makedatafiles(format,numepochs_min,two_nite_trigger,outfile,outdir,fakeversi
     print a
     subprocess.call(a, shell=True)
     
-def combinedatafiles(fitsname='datafiles_combined.fits',datadir='LightCurvesReal'):
+def combinedatafiles(master,fitsname,datadir):
+    season = os.environ.get('SEASON')
+    season = str(season)
+
+    mlist = Table.read(master)
+    masdf = mlist.to_pandas()
+
     path = os.path.join(os.environ.get('ROOTDIR2'), 'makedatafiles')
     fitsname = os.path.join(path,fitsname)
     path = os.path.join(path,datadir)
+    
+    if os.path.isfile(fitsname):
+        print 'A combined .fits file for all real candidates already exists in the specified outdir with the specified name:'
+        print
+        print fitsname
+        print
+        print 'If you want to recreate the file, either change the combined_fits key under the [GWmakeDataFiles-real] heading in the .ini file, or simply delete the existing one.'
+        print
+        return fitsname
 
     listfile = os.path.join(path,datadir+'.LIST')
 
@@ -292,6 +506,11 @@ def combinedatafiles(fitsname='datafiles_combined.fits',datadir='LightCurvesReal
     #print len(RA)
     #print len(PHOTFLAG)
 
+    HEX = []
+
+    for h in EXPNUM:
+        HEX.append(masdf['hex'].loc[masdf['expnum']==h].values[0])
+
     MJD,FIELD,FLUXCAL,FLUXCALERR,PHOTFLAG,PHOTPROB,ZPFLUX,PSF,SKYSIG,SKYSIG_T,\
         GAIN,XPIX,YPIX,NITE,EXPNUM,CCDNUM,OBJID,RA,DEC,CAND_ID,SN_ID = \
         np.asarray(MJD),np.asarray(FIELD),np.asarray(FLUXCAL),np.asarray(FLUXCALERR),\
@@ -308,11 +527,16 @@ def combinedatafiles(fitsname='datafiles_combined.fits',datadir='LightCurvesReal
     tbhdu1 = fits.BinTableHDU.from_columns(
         [fits.Column(name='cand_ID', format='K', array=CAND_ID.astype(float)),
          fits.Column(name='SNID', format='K', array=SN_ID.astype(float)),
+         fits.Column(name='OBJID', format='K', array=OBJID.astype(float)),
          fits.Column(name='RA', format='E', array=RA.astype(float)),
          fits.Column(name='DEC', format='E', array=DEC.astype(float)),
          fits.Column(name='MJD', format='E', array=MJD.astype(float)),
          fits.Column(name='BAND', format='1A', array=BAND),
-         fits.Column(name='FIELD', format='K', array=RA.astype(float)),
+         fits.Column(name='EXPNUM', format='K', array=EXPNUM.astype(float)),
+         fits.Column(name='CCDNUM', format='K', array=CCDNUM.astype(float)),
+         fits.Column(name='NITE', format='K', array=NITE.astype(float)),
+         fits.Column(name='HEX', format='8A', array=HEX),
+         #fits.Column(name='FIELD', format='K', array=RA.astype(float)),
          fits.Column(name='FLUXCAL', format='E', array=FLUXCAL.astype(float)),
          fits.Column(name='FLUXCALERR', format='E', array=FLUXCALERR.astype(float)),
          fits.Column(name='PHOTFLAG', format='K', array=PHOTFLAG.astype(float)),
@@ -324,10 +548,7 @@ def combinedatafiles(fitsname='datafiles_combined.fits',datadir='LightCurvesReal
          fits.Column(name='GAIN', format='E', array=GAIN.astype(float)),
          fits.Column(name='XPIX', format='E', array=XPIX.astype(float)),
          fits.Column(name='YPIX', format='E', array=YPIX.astype(float)),
-         fits.Column(name='NITE', format='K', array=NITE.astype(float)),
-         fits.Column(name='EXPNUM', format='K', array=EXPNUM.astype(float)),
-         fits.Column(name='CCDNUM', format='K', array=CCDNUM.astype(float)),
-
+    
          fits.Column(name='HOSTID', format='K', array=HOSTID.astype(float)),
          fits.Column(name='PHOTOZ', format='E', array=PHOTOZ.astype(float)),
          fits.Column(name='PHOTOZERR', format='E', array=PHOTOZERR.astype(float)),
@@ -344,423 +565,444 @@ def combinedatafiles(fitsname='datafiles_combined.fits',datadir='LightCurvesReal
 
     print "number of candidates where all detections had ml_score>0.5 :",allgood
     print
-  
-
-# import os
-# import shutil
-# import numpy as np
-# import matplotlib.pyplot as plt 
-# import pyfits as py
-# import argparse
-# import ConfigParser
-# import glob, sys, datetime, getopt
-# import subprocess
-# import diffimg
-# import easyaccess
-# import numpy as np
-# import HTML
-
-# ###FOR TESTING PURPOSES###
-# ### 475914 475915 475916 482859 482860 482861 ###
-# ###SEASON= 46###
-# #Read User input#
-# def image(text, url):
-#     return "<center>%s</center><img src='%s'>" % (text, url)
-# def savedata(reals,urID,outdir,trigger_id):
-#     Cand =(reals.data.SNID == urID)
-#     trigger_id = triggerid
-#     Cand_id = urID
-#     band = reals.data.BAND[Cand]
-#     x = reals.data.XPIX[Cand]
-#     y = reals.data.YPIX[Cand]
-# #    nite = reals.data.NITE[Cand]
-#     mjd = reals.data.MJD[Cand]
-#     nite = mjd
-#     expnum= reals.data.EXPNUM[Cand]
-#     ccdnum= reals.data.CCDNUM[Cand] 
-#     photprob= reals.data.PHOTPROB[Cand]
-#     mag = reals.data.MAG[Cand]
-#     thisobs_ID=reals.data.OBJID[Cand]
-#     thisobs_ID=reals.data.MJD[Cand]
-#     search,temp,diff=[],[],[]
-#     for o in thisobs_ID:
-#         search.append('stamps/' + str(int(urID))  + '/srch' + str(o) + '.gif')
-#         temp.append('stamps/' + str(int(urID))  + '/temp' + str(o) + '.gif')
-#         diff.append('stamps/' + str(int(urID))  + '/diff' + str(o) + '.gif')
-#     ra = reals.data.RA[Cand][0]
-#     dec= reals.data.DEC[Cand][0]
-#     field = reals.data.FIELD[Cand][0]
-#     lcplot = 'plots/lightcurves/FluxvsMJD_for_cand_'+ str(urID)+ '_in_i_Band.png'
-#     print search
-#     np.savez(os.path.join(outdir,str(urID)+'.npz'),
-#              band=band,x=x,y=y,mjd=mjd,expnum=expnum,ccdnum=ccdnum,
-#              photprob=photprob,mag=mag,thisobs_ID=thisobs_ID,search=search,
-#              temp=temp,diff=diff,ra=ra,dec=dec,field=field,lcplot=lcplot)
-
-# print "Read user input"
-# ###CREATE NPZ FILE###
-# ### WE NEED EXPLIST TO ENSURE ALL EXPOSURE NUMBERS ARE ACCOUNTED FOR ###
-# parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-
-# parser.add_argument('--expnums', metavar='e',type=int, nargs='+', help='List of Exposures', default= [])
-
-# #parser.add_argument('--outputdir', metavar='d', type=str, help='Directory location of output files', default= "testevent")
-
-# parser.add_argument('--season', help='season is required', default=300, type=int)
-
-# parser.add_argument('--triggerid', help= 'Ligo trigger is required', default='GW170104', type=str)
-
-# parser.add_argument('--mjdtrigger', type = float, help= 'Input MJD Trigger', default = 57757)
-# parser.add_argument('--debug', type= bool, help='Turn on Webpage generation', default= False)
-# parser.add_argument('--ups', type= bool, default=False)
-
-# args = parser.parse_args()
-# expnums = args.expnums
-# print args.expnums
-# #print args.outputdir
-# ups= args.ups
-
-# print "Read config file"
-# config = ConfigParser.ConfigParser()
-# if ups:
-#     cpath=os.environ["GWPOST_DIR"]
-#     infile = config.read(os.path.join(cpath,"postproc.ini"))[0]
-# else:
-#     inifile = config.read('./postproc.ini')[0]
-
-# outdir = config.get('data','out')
-# #outdir = str(args.outputdir)
-
-# if not os.path.exists(outdir):
-#     os.mkdir(outdir) 
-
-# if not os.path.exists(outdir + '/' + 'stamps'):
-#     os.mkdir(outdir + '/' + 'stamps')
-
-# if not os.path.exists(outdir + '/' + 'plots'):
-#     os.mkdir(outdir + '/' + 'plots')
-
-# if not os.path.exists(outdir + '/plots/' + 'lightcurves'):
-#     os.mkdir(outdir + '/plots/' + 'lightcurves')
-
-# outplots = outdir + '/' + 'plots'
-# outstamps = outdir + '/' + 'stamps'
-
-# print "Read environment variables"
-# season= str(args.season)
-# run = "dp"+str(season)
-# triggerid = str(args.triggerid)
-# #forcedir = '/pnfs/des/scratch/gw/forcephoto/images/' +str(run) + '/*'
-# #print forcedir
-
-# #print season
-
-
-
-
-
-
-
-# # if expnums not provided, read from file
-# if len(expnums)==0:
-#     expnums_listfile = config.get('data','exposures_listfile')
-#     expnums_listfile = os.path.join(outdir,expnums_listfile)
-#     explist = open(expnums_listfile,'r')
-#     expnums1 = explist.readlines()
-#     expnums = []
-#     for line in expnums1:
-#         expnums.append(line.split('\n')[0])
-#         expnums = map(int,expnums)
-#     if len(expnums)==0:
-#         sys.exit(1)
-#     print expnums
-
-# expdir = config.get('data', 'exp')
-# ncore = config.get('GWFORCE', 'ncore')
-# numepochs_min = config.get('GWFORCE', 'numepochs_min')
-# writeDB = config.get('GWFORCE', 'writeDB')
-# forcedir = config.get('GWFORCE','forcedir')
-# forcedir = forcedir + '/images/'+str(run)+'/*'
-
-# format= config.get('GWmakeDataFiles', 'format')
-# #numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
-# trigger = config.get('GWmakeDataFiles', '2nite_trigger')
-# outFile_stdoutreal = config.get('GWmakeDataFiles-real', 'outFile_stdout')
-# outFile_stdoutreal = os.path.join(outdir,outFile_stdoutreal)
-# outDir_datareal = config.get('GWmakeDataFiles-real', 'outDir_data')
-# outDir_datareal = os.path.join(outdir,outDir_datareal)
-# outFile_stdoutfake = config.get('GWmakeDataFiles-fake', 'outFile_stdout')
-# outFile_stdoutfake = os.path.join(outdir,outFile_stdoutfake)
-# outDir_datafake = config.get('GWmakeDataFiles-fake', 'outDir_data')
-# outDir_datafake = os.path.join(outdir,outDir_datafake)
-# fakeversion = config.get('GWmakeDataFiles-fake', 'version')
-# #fakeversion = os.path.join(outdir,fakeversion)
-
-
-# print "Check RUNMON outputs"
-
-# #expnumlist = args.expnums
-# ### Query this from database ###
-
-# #Read in and locate files#
-# goodexpnums = []
-# for expnum in expnums: 
-#     e=str(expnum)
-#     print "Check dir content for exposure " +e
-#     d= expdir+"/*/"+e+"/"+run
-#     runmonlog=d+"/RUNEND*.LOG"
-#     print runmonlog
-#     nfiles= len(glob.glob(runmonlog))
-#     if nfiles != 1:
-#         print "WARNING: runmonlog for exposure " + e + " not found"
-#     else:
-#         print "Exposure " + e + "ok"
-#     psf= forcedir+"/*"+e+"*.psf"
-#     diffmh = forcedir+"/*"+e+"*_diff_mh.fits"
-#     good = True
-#     for filetype in (psf, diffmh):
-#         if len(glob.glob(filetype)) == 0 :
-#             print "files " + str(filetype) + " not found"
-#     isstartedfile = os.path.join(outdir,"isstarted",str(expnum) + '.txt')
-#     if os.path.exists(isstartedfile):
-#         good = False
-#         print "Skipping expnum because already started",expnum
-#     if good:
-#         goodexpnums.append(expnum)
-#         if not os.path.exists(os.path.join(outdir,"isstarted")):
-#             os.mkdir(os.path.join(outdir,"isstarted"))
-#         os.system("touch "+ isstartedfile)
-# print "Run GWFORCE"
-# oexpnums = expnums
-# expnums= goodexpnums
-# if len(expnums)==0:
-#     print "No good exposures."
-#     #sys.exit()
-
-
-# numepochs_min = config.get('GWmakeDataFiles', 'numepochs_min')
-
-# ####run "gwhostmatch" section (if time allows)#
-# if ups:
-#     gwpostdir = os.environ['GWPOST_DIR']
-#     deshostmatch = os.path.join(gwpostdir,'desHostMatch_v2.py')
-# else:
-#     deshostmatch = 'desHostMatch_v2.py'
-
-# print '-'*50
-# print 'Running',deshostmatch
-# ##not this
-# #print os.popen('python '+deshostmatch+' --season='+season).read()
-# ###this
-# #print os.popen('python '+deshostmatch+' '+season+' --username marcelle --password mar70chips --dbname destest --verbose --testdb').read()
-# print 'Finished',deshostmatch
-# print '-'*50
-
-# #sys.exit()
-# print "Run GWmakeDataFiles - real"
-
-# #run "Gwmakedatafiles" section#
-
-# #makeDataFiles_fromSNforce \
-# #   -format snana \
-# #   -season 201     \
-# #   -numepochs_min 0 \
-# #   -2nite_trigger iz \
-# #   -outFile_stdout  makeDataFiles_real.stdout  \
-# #   -outDir_data   GWevent2_numepoch1_iz_real_text \
-
-# if not trigger=='null':
-#     b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season '+ season  + '  -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
-# else:
-#     b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season '+ season  + '  -numepochs_min ' +numepochs_min + ' -outFile_stdout ' +outFile_stdoutreal + ' -outDir_data ' +outDir_datareal
-
-# print 'B', b 
-# #if running from ups we need to go to outdir because idk
-# if ups:
-#     gwpostdir = os.environ['GWPOST_DIR']
-#     os.chdir(outdir)
-#     os.system("cp "+gwpostdir+"/FAKES_OVERLAID_" + fakeversion + ".DAT " + outdir)
-# #subprocess.call(b, shell=True)
-
-# print "real MakeDataFiles complete"
-# #sys.exit()
-# #Run bobby's code here
-
-# print "Run GWmakeDataFiles - fake"
-
-# if not trigger=='null':
-#     b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season ' + season + ' -numepochs_min ' +numepochs_min + ' -2nite_trigger ' +trigger + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
-# else:
-#     b= 'makeDataFiles_fromSNforce' + ' -format ' +format + ' -season ' + season + ' -numepochs_min ' +numepochs_min + ' -outFile_stdout ' +outFile_stdoutfake + ' -outDir_data ' +outDir_datafake + ' -fakeVersion ' +fakeversion
-
-# print b
-
-# subprocess.call(b, shell=True)
-# sys.exit()
-
-# #if running from ups go back to ups dir
-# if ups:
-#     os.chdir(gwpostdir)
-
-# #Produce Truth Table for Fakes#
-# explist=','.join(map(str,oexpnums))
-
-# # the database where diffimg outputs are stored                                 
-# db='destest'
-# schema = 'marcelle'
-
-# # the query you want to run to get the truth table data                         
-# query='select distinct SNFAKE_ID, EXPNUM, CCDNUM, TRUEMAG, TRUEFLUXCNT, FLUXCNT, BAND, NITE, MJD from '+ schema +'.SNFAKEIMG where EXPNUM IN ('+explist+') order by SNFAKE_ID'
-# print query
-
-# # the file where you want to save the truth table                              
-
- 
-# filename= config.get('GWmakeDataFiles-fake', 'fake_truth')
-# filename=os.path.join(outdir,filename)
-# connection=easyaccess.connect(db)
-# connection.query_and_save(query,filename)
-# connection.close()
-
-# #sys.exit()
-# ### FOR THE FIRST RUN EXIT HERE TO LEARN NAMES OF VALUES WE NEED###
-# print "Data Made"
- 
-
-# print "Read Data"
-
-# #Make plots Section#
-# ###Plot1 Efficiency Plot ###
-# ###Plot5 Magerror Distribution ###
-# ###Plots should include all bands###
-
-# #print os.path.join(outdir,outDir_datareal)
-# #reals = diffimg.DataSet(os.path.join(outdir,outDir_datareal), label = 'reals')
-# #fakes = diffimg.DataSet(os.path.join(outdir,outDir_datafake), label = 'fakes')
-# reals = diffimg.DataSet(outDir_datareal, label = 'reals')
-# fakes = diffimg.DataSet(outDir_datafake, label = 'fakes')
-# ###Need to generate fakes input on own###
-# os.system('mv fakes_truth.tab '+outdir)
-# #fakes.get_fakes_input(os.path.join(outdir,config.get('GWmakeDataFiles-fake', 'fake_input')))
-# #truth = fakes.fakes_input
-
-# print '-----'
-# #print reals
-# print '-----'
-
-# rdatag = reals.set_mask(PHOTFLAG_bit=4096)
-# fdatag = fakes.set_mask(PHOTFLAG_bit=4096)
-# colors = ['r','g','b','c','m','k','y']
-# rID= reals.data.SNID
-# urID= np.unique(rID)
-# numofcan = len(urID)
-# realss = reals.data
-# bands = realss.BAND
-# ubands = np.unique(bands)
-
-
-
-# #bins = bins = np.arange(17,25,0.5)
-
-# ###Generalize code to handle all bands/any combo of bands###
-
-# #fmaski = (fdatag.BAND=='i')
-# #fmaskz = (fdatag.BAND=='z')
-# #tmaski = (truth.BAND == 'i')
-# #tmaskz = (truth.BAND == 'z')
-# #
-# #print "Plot Efficiency"
-# #
-# #for i in range(0,len(ubands)):
-# #    fmask= (fdatag.BAND == ubands[i])
-# #    tmask = (truth.BAND == ubands[i])
-# #    fhist, bin_edges = np.histogram(fdatag.SIMMAG[fmask],bins = bins)
-# #    thist, bin_edges = np.histogram(truth.TRUEMAG[tmask], bins=bins)
-# #    plt.plot(bins[1:], fhist*100.0/thist, label = str(ubands[i]), lw=4)
-# #    plt.scatter(bins[1:], fhist*100.0/thist, lw=4)
-# #    plt.title('Efficiency')
-# #    plt.xlabel('Mag')
-# #    plt.ylabel('Percent Found')
-# #    plt.savefig(outplots + 'Efficiency for ' + str(ubands[i]) + '.png')
-# #    plt.clf()
-# #
-# #
-# #f_ihist, bin_edges = np.histogram(fdatag.SIMMAG[fmaski],bins=bins)
-# #f_zhist, bin_edges = np.histogram(fdatag.SIMMAG[fmaskz],bins=bins)
-# #
-# #t_ihist, bin_edges = np.histogram(truth.TRUEMAG[tmaski], bins=bins)
-# #t_zhist, bin_edges = np.histogram(truth.TRUEMAG[tmaskz], bins=bins)
-# #
-# #plt.figure()
-# #plt.plot(bins[1:], f_ihist*100.0/t_ihist, label= 'i-band', lw=4, color='orange')
-# #plt.plot(bins[1:], f_zhist*100.0/t_zhist,label='z-band',lw=4,color='darkblue')
-# #plt.scatter(bins[1:], f_ihist*100.0/t_ihist,lw=4,color='orange')
-# #plt.scatter(bins[1:], f_zhist*100.0/t_zhist,lw=4,color='darkblue')
-# #plt.title('Efficiency: Blue = z  Orange = i')
-# #plt.xlabel('Magnitude')
-# #plt.ylabel('Percent Found')
-# #plt.savefig(outplots + '/'+'efficiency.pdf')
-# #plt.clf()
-# #
-# #print "Plot DeltaMag/MAGERR histogram"
-
-# #Histogram of DeltaMag/MAGERR#
-
-# #deltai = fdatag.MAG[fmaski] - fdatag.SIMMAG[fmaski]
-# #deltaz = fdatag.MAG[fmaskz] - fdatag.SIMMAG[fmaskz]
-# #deltaiovererr = deltai/(fdatag.MAGERR[fmaski])
-# #deltazovererr = deltaz/(fdatag.MAGERR[fmaskz])
-# #bins2 = np.arange(-30,30,.1)
-# #iweights = np.ones_like(deltaiovererr)/float(len(deltaiovererr))
-# #zweights = np.ones_like(deltazovererr)/float(len(deltazovererr))
-# #
-# #deltaiovererr_hist, bin_edges= np.histogram(deltaiovererr, weights= iweights, bins=bins2)
-# #deltazovererr_hist, bin_edges= np.histogram(deltazovererr, weights= zweights, bins=bins2)
-# #
-# #plt.figure()
-# #plt.plot(bins2[1:], deltaiovererr_hist, label= 'i-band', lw=3, color='orange')
-# #plt.plot(bins2[1:], deltazovererr_hist, label= 'z-band', lw=3, color='blue')
-# #plt.title('Delta Mag over Mag Error')
-# #plt.ylabel('Percent of Total')
-# #plt.savefig(outplots +'/'+'DeltaoverERR.pdf')
-# #plt.clf()
-
-# #sys.exit()
-
-# print "Number of candidates per ccd"
-# #Plot Candidates per CCD #
-# #print reals.data
-
-# x = np.zeros(len(np.unique(reals.data.SNID)))
-# y = np.unique(reals.data.SNID)
-# for i in np.arange(len(x)):
-#     x[i] =reals.data.CCDNUM[reals.data.SNID==y[i]][1]
-
-# plt.hist(x, bins= np.arange(min(reals.data.CCDNUM), max(reals.data.CCDNUM) +2 ,1), color='orange')
-# plt.title('Hist of real candidates per CCD')
-# plt.ylabel('Number of Real Candidates')
-# plt.xlabel('CCD Number')
-# plt.savefig(outplots +'/'+'Hist_of_real_candidates_per_CCD.pdf')
-# plt.clf()
-
-# sys.exit()
-
-# x = np.zeros(len(np.unique(fakes.data.SNID)))
-# y = np.unique(fakes.data.SNID)
-# for i in np.arange(len(x)):
-#     x[i] =fakes.data.CCDNUM[fakes.data.SNID==y[i]][1]
-
-
-# plt.hist(x, bins= np.arange(min(reals.data.CCDNUM), max(reals.data.CCDNUM) +2,1),color = 'orange')
-# plt.title('Hist of fake candidates per CCD')
-# plt.ylabel('Number of Fake Candidates')
-# plt.xlabel('CCD Number')
-# plt.savefig(outplots +'/'+'Hist_of_fake_candidates_per_CCD.pdf')
-# plt.clf()
-
-# print "Save candidates info"
-# ###Write data files for each candidate including info discussed###
-
+    
+    return fitsname
+
+def makeplots(ccddf,master,truthplus,fitsname,expnums,mjdtrigger,ml_score_cut=0.,skip=False):
+
+    season = os.environ.get('SEASON')
+    season = str(season)
+
+    rootdir = os.environ.get('ROOTDIR')
+    rootdir = os.path.join(rootdir,'exp')
+
+### get data
+    if os.path.isfile(master):
+        mlist = Table.read(master)
+        masdf = mlist.to_pandas()
+    else:
+        skip = True
+        print "No master list found with filename",master+'.'
+        print "Plots requiring a master list (SNR, RA/DEC hex maps) will not be created."
+
+    df1 = truthplus
+
+    outdir = os.path.join(os.environ.get('ROOTDIR2'),'plots')
+    if not os.path.isdir(outdir):
+        os.mkdir(outdir)
+
+    rtable = Table.read(fitsname)
+    rdf1 = rtable.to_pandas()
+    
+### cut out rejects ###
+    df = df1.loc[df1['REJECT'] == 0]
+    rdf = rdf1.loc[rdf1['PHOTFLAG'].isin([4096,12288])]
+
+### TEMPLATE FAILURES (temporary section?) ###
+    ccdhexes = masdf['fullhex'].loc[masdf['epoch']==4].values
+    ccdexp = masdf.loc[(masdf['epoch']==4) & (masdf['fullhex'].isin(ccdhexes))]
+
+    tempfails,rafail,decfail = [],[],[]
+
+    explist = list(ccdexp['expnum'].values)
+
+    for t in sorted(explist):
+        if (ccddf.loc[str(t)]==2).any():
+            tempfails.append(t)
+            rafail.append(masdf['RA'].loc[masdf['expnum']==t].values[0])
+            decfail.append(masdf['DEC'].loc[masdf['expnum']==t].values[0])
+    
+    print len(tempfails)
+    print tempfails
+
+    np.savetxt('event3_ccds.txt',np.c_[tempfails,rafail,decfail],fmt=['%d','%.6f','%.6f'],delimiter='\t',header='EXP\tRA\t\tDEC',comments='')
+
+    notemp = masdf.loc[masdf['expnum'].isin(tempfails)]
+    yestemp = masdf.loc[(masdf['expnum'].isin(explist)) & (~masdf['expnum'].isin(tempfails))]
+
+    notemp.ix[notemp['RA'] > 180, 'RA'] = notemp.ix[notemp['RA'] > 180, 'RA'] - 360.
+    yestemp.ix[yestemp['RA'] > 180, 'RA'] = yestemp.ix[yestemp['RA'] > 180, 'RA'] - 360.
+
+    xmax = max([max(notemp['RA']),max(yestemp['RA'])])+2
+    ymax = max([max(notemp['DEC']),max(yestemp['DEC'])])+2
+    xmin = min([min(notemp['RA']),min(yestemp['RA'])])-2
+    ymin = max([min(notemp['DEC']),min(yestemp['DEC'])])-2
+
+    plt.xlim(xmin,xmax)
+    plt.ylim(ymin,ymax)
+
+    plt.scatter(notemp['RA'],notemp['DEC'],marker='H',c='r',s=200,label='failed')
+    plt.scatter(yestemp['RA'],yestemp['DEC'],marker='H',c='b',s=200,label='succeeded')
+    plt.title('Template failures - GW170104')
+    plt.xlabel('RA')
+    plt.ylabel('DEC')
+    plt.legend()
+    #plt.show()
+    plt.savefig('templatefailures.png',dpi=200)
+    
+    plt.clf()
+    sys.exit()
+    
+### EFFICIENCY ###
+
+    bins = np.arange(17,25,1)
+
+    fhist, bin_edges = np.histogram(df['MAG'], bins=bins)
+    thist, bin_edges = np.histogram(df1['TRUEMAG'], bins=bins)
+    
+
+    plt.xlim(17,25)
+    plt.ylim(0,100)
+    plt.plot(bins[:-1], fhist*100.0/thist, lw=4)
+    plt.scatter(bins[:-1], fhist*100.0/thist, lw=4)
+    plt.title('Efficiency')
+    plt.xlabel('Mag')
+    plt.ylabel('Percent Found')
+    plt.savefig(os.path.join(outdir,'efftest_'+season+'.png'))
+    plt.clf()
+
+### ML_SCORE HISTOGRAM - FAKES ###
+
+    plt.hist(df1['ML_SCORE'],bins=np.linspace(0.3,1,100))
+    plt.title('ML_SCORE OF FAKES')
+    plt.xlabel('ml_score')
+    plt.ylabel('# of fakes')
+    plt.savefig(os.path.join(outdir,'fakemltest_'+season+'.png'))
+    plt.clf()
+
+### PULL --> (MAG-TRUEMAG)/MAG_ERR -- FOR FAKES ### 
+
+    magdiff = df['MAG']-df['TRUEMAG']
+    pull = magdiff/df['MAGERR']
+    
+    #bins = np.linspace(int(min(pull)),int(max(pull)+1),100)
+    bins = np.linspace(-3,3,100)
+    plt.hist(pull,bins=bins)
+    plt.xlabel("Magnitude Pull (MAG-TRUEMAG)/MAGERR")
+    plt.ylabel("Number of Objects")
+    plt.title("Magnitude Pull for Fakes")
+    plt.xlim(bins.min(),bins.max())
+
+    plt.savefig(os.path.join(outdir,'pulltest_'+season+'.png'))
+    plt.clf()
+
+### NUMBER OF REAL CANDIDATES PER CCD ###
+
+    bins = np.arange(1,64,1)
+    
+    for e in expnums:
+        ccdcand = rdf['CCDNUM'].loc[rdf['EXPNUM'] == e]
+        ccdhist, bin_edges = np.histogram(ccdcand, bins=bins)
+        
+        plt.xlim(0,63)
+        plt.ylim(0,max(ccdhist)+1)
+        plt.scatter(bins[:-1], ccdhist)
+        plt.plot(bins[:-1], ccdhist, label=str(e))
+        plt.grid(True)
+    
+    plt.xlabel('CCD')
+    plt.ylabel('# of candidates')
+    plt.title('# of Candidates per CCD')
+    plt.legend(fontsize='small')
+    plt.savefig(os.path.join(outdir,'ccdtest'+season+'.png'))
+    plt.clf()
+
+### SNR VS. HEX -- FAKES ###
+    if not skip:
+        masdf_ord = masdf
+        masdf_ord.ix[masdf_ord['RA'] > 180, 'RA'] = masdf_ord.ix[masdf_ord['RA'] > 180, 'RA'] - 360.
+        masdf_ord = masdf_ord.sort_values(by='RA')
+        SNR = OD()
+        maxepoch = max(masdf_ord['epoch'])
+        for hx in masdf_ord['hex'].unique():
+            SNR[hx]=np.array([-5.]*maxepoch)
+            epexpdf = masdf_ord[['hex','epoch','expnum']].loc[masdf_ord['hex']==hx]
+            for ep in epexpdf['epoch'].unique():
+                snrexp = epexpdf['expnum'].loc[epexpdf['epoch']==ep].values[0]
+                snrs = df['SNR'].loc[df['EXPNUM']==snrexp].values
+                if len(snrs)==0:
+                    SNR[hx][ep-1] = 0
+                else:
+                    meansnr = np.mean(snrs)
+                    SNR[hx][ep-1] = meansnr
+
+        SNRdf = pd.DataFrame.from_dict(SNR,orient='index')
+        SNRdf = SNRdf.reset_index()
+        cols = ['hex']
+
+        epochs = np.array(range(maxepoch))+1
+        for i in epochs:
+            cols.append(str(i))
+        SNRdf.columns = cols
+
+        inds = np.array(SNRdf.index.values)+1
+
+        plt.figure(figsize=(16,9))
+        
+        ax = plt.axes()
+        ax.yaxis.grid(True)
+        ax.xaxis.grid(True)
+
+        major = MultipleLocator(5)
+        majForm = FormatStrFormatter('%d')
+        minor = MultipleLocator(1)
+        ax.xaxis.set_major_locator(major)
+        ax.xaxis.set_major_formatter(majForm)
+        ax.xaxis.set_minor_locator(minor)
+
+        for e in epochs:
+            plt.plot(inds, SNRdf[str(e)], '-o', markeredgewidth=0, label='epoch '+str(e), antialiased=True)
+        
+        plt.legend(loc='upper left',fontsize='small')
+        plt.axis([0, max(inds)+1, -10, max(SNRdf.max(numeric_only=True))+5])
+        plt.title("Average SNR of MAG=20 fakes by hex index and epoch - GW170104")
+
+        plt.xlabel('Hex Index')
+        plt.ylabel('Mean SNR')
+
+        savefile = 'SNR_test.png'
+        plt.savefig(os.path.join(outdir,savefile),dpi=400)
+
+        plt.clf()
+
+    sys.exit()
+
+### RA/DEC MAPS ###
+    
+    radecdf = rdf
+    if abs(max(radecdf['RA'])-min(radecdf['RA']))>180:
+        for ira in range(len(radecdf['RA'])):
+            if radecdf['RA'][ira]>180:
+                radecdf['RA'][ira] = radecdf['RA'][ira]-360
+
+    radecdf = radecdf.drop_duplicates('cand_ID')
+
+    radecdf = radecdf.loc[radecdf['PHOTPROB'] > ml_score_cut]
+
+    #plt.hist2d(radecdf['RA'],radecdf['DEC'],50)
+    
+    mapdir = os.path.join(outdir,'maps')
+    if not os.path.isdir(mapdir):
+        os.mkdir(mapdir)    
+
+    hexex = []
+
+    ### this loop gets the full set of first epoch exposures of each hex.
+    ### if there are two (or more), it chooses the one with the best t_eff.
+    for h in masdf['fullhex'].unique():
+        exepteff = masdf[['expnum','epoch','t_eff']].loc[masdf['fullhex'] == h]
+        cut = exepteff[['expnum','epoch','t_eff']].loc[exepteff['epoch']==1]
+        if len(cut)>1:
+            cut = cut.loc[cut['t_eff'] == cut['t_eff'].ix[cut['t_eff'].idxmax()]]
+        hexex.append(cut['expnum'].values[0])
+
+    radecdf = radecdf.loc[radecdf['EXPNUM'].isin(hexex)]
+
+    ### overall map
+    plt.scatter(radecdf['RA'],radecdf['DEC'],c=radecdf['PHOTPROB'],edgecolor='',s=5)
+    plt.xlim(min(radecdf['RA'])-0.2,max(radecdf['RA'])+0.2)
+    plt.ylim(min(radecdf['DEC'])-0.2,max(radecdf['DEC'])+0.2)
+    plt.clim(0,1)
+    plt.colorbar().set_label('ml_score')
+    plt.title('Candidate Sky Map')
+    plt.xlabel('RA')
+    plt.ylabel('DEC')
+    plt.savefig(os.path.join(outdir,'fullmap_'+season+'.png'))
+    plt.clf()
+
+    ### individual hex maps
+    if not skip:
+        for e in hexex:
+            print e
+            out = ''
+            out = os.path.join(rootdir,str(masdf['nite'].loc[masdf['expnum']==e].values[0]))
+            out = os.path.join(out,str(e))
+            out = os.path.join(out,str(e)+'.out')
+
+            odf = pd.read_table(out,delim_whitespace=True,header=None,names=['expnum','band','ccd','ra1','dec1','ra2','dec2','ra3','dec3','ra4','dec4'])
+
+            odf = odf.drop_duplicates()
+            odf = odf.reset_index(drop=True)
+
+            odf.ix[odf.ra1 > 270., 'ra1'] = odf.ix[odf.ra1 > 270., 'ra1'] - 360.
+            odf.ix[odf.ra2 > 270., 'ra2'] = odf.ix[odf.ra2 > 270., 'ra2'] - 360.
+            odf.ix[odf.ra3 > 270., 'ra3'] = odf.ix[odf.ra3 > 270., 'ra3'] - 360.
+            odf.ix[odf.ra4 > 270., 'ra4'] = odf.ix[odf.ra4 > 270., 'ra4'] - 360.
+
+            ras = np.concatenate((odf['ra1'].tolist(),odf['ra2'].tolist(),odf['ra3'].tolist(),odf['ra4'].tolist()),axis=0)
+
+            decs = np.concatenate((odf['dec1'].tolist(),odf['dec2'].tolist(),odf['dec3'].tolist(),odf['dec4'].tolist()),axis=0)
+
+            for i in range(len(odf)):
+                ra = odf.ix[i,['ra1','ra2','ra3','ra4']]
+                dec = odf.ix[i,['dec1','dec2','dec3','dec4']]
+                chip = str(odf.ix[i,'ccd'])
+                midra = (max(ra)+min(ra))/2.
+                middec = (max(dec)+min(dec))/2.
+                middle = tuple([midra,middec])
+                cs = zip(ra,dec)
+                cent=(sum([c[0] for c in cs])/len(cs),sum([c[1] for c in cs])/len(cs))
+                cs.sort(key=lambda c: math.atan2(c[1]-cent[1],c[0]-cent[0]))
+                cs.append(cs[0])
+                plt.plot([c[0] for c in cs],[c[1] for c in cs],ls=':',lw=0.5,c='k')
+                plt.annotate(chip, xy=middle, ha='center',va='center',family='sans-serif',fontsize=12,alpha=0.3)
+
+            plt.xlim(min(ras)-0.2,max(ras)+0.2)
+            plt.ylim(min(decs)-0.2,max(decs)+0.2)
+
+            pltdf = radecdf.loc[radecdf['EXPNUM'] == e]
+            plt.scatter(pltdf['RA'],pltdf['DEC'],c=pltdf['PHOTPROB'],edgecolor='')
+            plt.clim(0,1)
+            plt.colorbar().set_label('ml_score')
+            hexname = masdf['hex'].loc[masdf['expnum'] == e].values[0]
+            plt.title('Candidate Sky Map: Hex '+str(hexname)+' (Exposure '+str(e)+')')
+            plt.xlabel('RA')
+            plt.ylabel('DEC')
+            plt.savefig(os.path.join(mapdir,'map_'+str(hexname)+'_'+str(e)+'.png'),dpi=200)
+            plt.clf()
+
+    lcdir = os.path.join(outdir,'lightcurves')
+
+    band = 'i'
+
+    numsnid = len(rdf['SNID'].unique())
+    ctsnid = 0
+    noct,yesct = 0,0
+
+    rdf['cutflag'] = np.zeros(len(rdf))
+
+    for sn in rdf['SNID'].unique():
+        #ctsnid += 1
+        
+        new = rdf[['MJD','FLUXCAL','FLUXCALERR','PHOTPROB']].loc[rdf['SNID']==sn]
+        
+        if all(i < ml_score_cut for i in new['PHOTPROB']):
+            noct+=1
+            continue
+        
+        yesct+=1
+        
+        if (noct+yesct) % 100 == 0:
+            print str(noct+yesct)+'/'+str(numsnid)
+
+        rdf.loc[rdf['SNID']==sn,'cutflag'] = 1
+        
+        continue
+
+        mjd = np.array(new['MJD'].tolist())
+        flux = np.array(new['FLUXCAL'].tolist())
+        fluxerr = np.array(new['FLUXCALERR'].tolist())
+        ml_score = np.array(new['PHOTPROB'].tolist())
+
+        plt.errorbar(mjd-mjdtrigger,flux,yerr=fluxerr,fmt='none',ecolor='k',zorder=0)
+        plt.scatter(mjd-mjdtrigger,flux,c=ml_score,edgecolor='',s=40,zorder=1)
+        plt.clim(0,1)
+        plt.title('SNID '+str(sn)+' ('+band+')')
+        plt.colorbar().set_label('ml_score')
+        plt.xlabel('MJD - MJD(TRIGGER)')
+        plt.ylabel('FLUX')
+        plt.savefig(os.path.join(lcdir,'SNID'+str(sn)+'.png'))
+        plt.clf()
+    return rdf
+
+def createhtml(fitsname,realdf,master):
+    rootdir = os.environ.get('ROOTDIR')
+    expdir = os.path.join(rootdir,'exp')
+    season = os.environ.get('SEASON')
+    skip = False
+
+    if os.path.isfile(master):
+        mlist = Table.read(master)
+        masdf = mlist.to_pandas()
+    else:
+        skip = True
+        print "No master list found with filename",master+'.'
+        print "This step will run more slowly because it will require the use of glob."
+
+    rdf = realdf.reset_index(drop=True)
+
+    ### GET STAMPS ###
+    lenr = len(rdf)
+    srcharray = ['' for x in range(lenr)]
+    temparray = ['' for x in range(lenr)]
+    diffarray = ['' for x in range(lenr)]
+    aaa = 0
+    aaalen = len(rdf['EXPNUM'].unique())
+    #time1 = time()
+    for e in sorted(rdf['EXPNUM'].unique()):
+        aaa += 1
+        bb = 0
+        print str(aaa)+'/'+str(aaalen)+' - '+str(e)
+        edf = rdf[['EXPNUM','NITE','CCDNUM','BAND','OBJID','HEX']].loc[rdf['EXPNUM'] == e]
+        bblen = len(edf['CCDNUM'].unique())
+        #time2 = time()
+        for c in sorted(edf['CCDNUM'].unique()):
+            bb += 1
+            #print '    '+str(bb)+'/'+str(bblen)+' - '+str(c)
+            cdf = edf.loc[edf['CCDNUM'] == c]
+            nite = str(cdf['NITE'].values[0])
+            hhex = str(cdf['HEX'].values[0])
+            exp = str(e)
+            dp = 'dp'+str(season)
+            band = str(cdf['BAND'].values[0])
+            ccd = '%02d' % c
+            stampname = 'stamps_'+nite+'_'+hhex+'_'+band+'_'+ccd
+            stampstar = os.path.join(expdir,nite+'/'+exp+'/'+dp+'/'+band+'_'+ccd+'/'+stampname)
+            #time3 = time()
+            #gstamp = glob(stampstar)
+            #time4 = time()
+            #if len(gstamp)==1:
+            if os.path.isdir(stampstar):
+                stampdir = stampstar
+                for i in list(cdf.index.values):
+                    #time5 = time()
+                    obj = str(int(cdf.ix[i,'OBJID']))
+                    srch = os.path.join(stampdir,'srch'+obj+'.gif')
+                    temp = os.path.join(stampdir,'temp'+obj+'.gif')
+                    diff = os.path.join(stampdir,'diff'+obj+'.gif')
+                    #time6 = time()
+                    
+                    srcharray[i] = srch
+                    #rdf.ix[i,'srchstamp'] = srch
+                    #rdf.ix[i,'srchstamp'] = 'NOSTAMP'
+                    
+                    temparray[i] = temp
+                    #rdf.ix[i,'tempstamp'] = temp
+                    #rdf.ix[i,'tempstamp'] = 'NOSTAMP'
+                    
+                    diffarray[i] = diff
+                    #rdf.ix[i,'diffstamp'] = diff
+                    #rdf.ix[i,'diffstamp'] = 'NOSTAMP'
+                    #time7 = time()
+                    #print '1-2',time2-time1
+                    #print '2-3',time3-time2
+                    #print '3-4',time4-time3
+                    #print '4-5',time5-time4
+                    #print '5-6',time6-time5
+                    #print '6-7',time7-time6
+                    #sys.exit()
+    
+    rdf['srchstamp'] = srcharray
+    rdf['tempstamp'] = temparray
+    rdf['diffstamp'] = diffarray
+
+    rdf['cutflag'] = rdf['cutflag'].astype(int)
+
+    spl = fitsname.split('.fits')
+    newfits = spl[0]+'stamps.fits'
+
+    newfile = fitsio.FITS(newfits,'rw')
+    newfile.write(rdf.to_records(index=False),clobber=True)
+    newfile.close()
+                    
+#    for i in list(rdf.index.values):
+#        nite = str(rdf.ix[i,'NITE'])
+#        exp = str(rdf.ix[i,'EXPNUM'])
+#        dp = 'dp'+str(season)
+#        band = str(rdf.ix[i,'BAND'])
+#        ccd = '%02d' % rdf.ix[i,'CCDNUM']
+#        stampstar = os.path.join(expdir,nite+'/'+exp+'/'+dp+'/'+band+'_'+ccd+'/'+'stamps_*')
+        
 
 # f1= open(str(outdir)+'/'+'allcandidates.txt', 'w')
 # header1 = 'SNID, ' + ' RA, ' + ' DEC, ' + ' CandType,' +  ' NumEpochs, ' + ' NumEpochsml, ' + ' LatestNiteml' 
